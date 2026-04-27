@@ -1,12 +1,12 @@
 {
   "as_of": "2026-04-27",
   "total_active": 7439,
-  "longest_days": 3105,
-  "over_5y": 539,
-  "over_3y": 1320,
-  "over_1y": 3588,
-  "zombies": 466,
-  "median_days": 354,
+  "longest_days": 6941,
+  "over_5y": 508,
+  "over_3y": 1251,
+  "over_1y": 3472,
+  "zombies": 447,
+  "median_days": 342,
   "complaints_12mo": 134,
   "chronic_sites": 8,
   "fisp_unsafe": 1284,
@@ -16,5 +16,6 @@
   "with_open_hpd": 3464,
   "with_open_class_c": 2744,
   "in_aep": 183,
-  "high_distress": 2385
+  "high_distress": 2385,
+  "over_10y": 42
 }

@@ -171,10 +171,10 @@
     const yrs = (s.days / 365).toFixed(1);
     return `
       <div class="popup-addr">${s.addr}</div>
-      <div class="popup-days">${fmt(s.days)} days up · ${yrs} years</div>
+      <div class="popup-days">${fmt(s.days)} days of permit coverage · ${yrs} years</div>
       <div class="popup-row"><span>Owner</span><span>${owner}</span></div>
-      <div class="popup-row"><span>First erected</span><span>${s.first || '—'}</span></div>
-      <div class="popup-row"><span>Permit expires</span><span>${s.exp || '—'}</span></div>
+      <div class="popup-row"><span>Run started</span><span>${s.first || '—'}</span></div>
+      <div class="popup-row"><span>Latest permit ends</span><span>${s.exp || '—'}</span></div>
       <div class="popup-row"><span>Borough</span><span>${s.boro}</span></div>
       <div class="popup-row"><span>Façade (LL11)</span><span>${FISP_LABEL[FISP_KEY(s)] || FISP_KEY(s)}${s.fisp_cycle ? ` · cycle ${s.fisp_cycle}` : ''}</span></div>
       ${(s.hpd_c || s.hpd_b || s.aep) ? `<div class="popup-row"><span>Open HPD viol.</span><span>${s.hpd_c || 0} class C, ${s.hpd_b || 0} class B${s.aep ? ' · in AEP' : ''}</span></div>` : ''}
@@ -403,17 +403,27 @@
     const longest = sheds[0] || {};
     const findings = [];
 
-    // 1. Trend headline
+    // 1. Trend / over-10-year headline.
     const trend = state.trend || [];
-    const earlyMed = (trend.find(t => t.m === '2018-06') || {}).med;
-    const nowMed = trend.length ? trend[trend.length - 1].med : s.median_days;
-    if (earlyMed && nowMed) {
-      const ratio = (nowMed / earlyMed).toFixed(1);
+    findings.push({
+      kind: 'severe',
+      num: fmt(s.over_10y || 0),
+      head: 'Buildings with continuous shed-permit coverage over 10 years',
+      body: `These buildings have had a sidewalk-shed permit on file with no gap longer than 30 days for more than a decade. The single longest run is at <strong>${longest.addr}</strong>, ${longest.boro}, since <strong>${longest.first}</strong> (${(longest.days / 365).toFixed(1)} years). Whether a single physical structure has stood the entire time is not certified by the data — but the building has been under shed nearly without interruption.`,
+      cta: 'Filter map to over-5-years →',
+      action: () => { state.buckets.add('1825-99999'); switchView('map'); syncLegend(); applyFilters(); },
+    });
+
+    // 1b. Citywide trend, plain numbers.
+    const m2010 = (trend.find(t => t.m === '2010-07') || {}).n;
+    const m2020peak = trend.reduce((max, t) => t.n > max.n ? t : max, { n: 0 });
+    const now = trend.length ? trend[trend.length - 1] : null;
+    if (m2010 && now) {
       findings.push({
-        kind: 'severe',
-        num: `${ratio}×`,
-        head: 'Sheds stay up far longer than they used to',
-        body: `Median time a shed has been up has gone from <strong>${earlyMed} days in mid-2018</strong> to <strong>${nowMed} days today</strong>. The fleet of sheds isn't necessarily bigger — it's older.`,
+        kind: 'context',
+        num: `${fmt(now.n)}`,
+        head: 'Active sheds today',
+        body: `Up from about <strong>${fmt(m2010)}</strong> a decade and a half ago. Citywide totals peaked around <strong>${fmt(m2020peak.n)}</strong> in ${m2020peak.m} and have come off that peak modestly. Median duration has drifted from roughly 250 days in the early 2010s to <strong>${now.med}</strong> days today.`,
         cta: 'See trend →',
         action: () => switchView('trend'),
       });
@@ -473,8 +483,8 @@
     if (longest.bin) findings.push({
       kind: '',
       num: `${(longest.days/365).toFixed(1)} yr`,
-      head: 'Longest-standing active shed',
-      body: `<strong>${longest.addr}, ${longest.boro}</strong> has had a sidewalk shed for <strong>${fmt(longest.days)} days</strong>. Owner per PLUTO: ${titleCase(longest.owner || 'unknown')}. Façade status: ${FISP_LABEL[FISP_KEY(longest)] || 'no filing'}.`,
+      head: 'Longest-running shed-permit coverage',
+      body: `<strong>${longest.addr}, ${longest.boro}</strong> has had an unbroken run of shed permits (gaps ≤30 days) since <strong>${longest.first}</strong>. Owner per PLUTO: ${titleCase(longest.owner || 'unknown')}. Façade status: ${FISP_LABEL[FISP_KEY(longest)] || 'no filing'}.`,
       cta: 'Show on map →',
       action: () => {
         switchView('map');

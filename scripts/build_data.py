@@ -29,7 +29,7 @@ DATA.mkdir(exist_ok=True)
 TODAY = date.today()
 TODAY_ISO = TODAY.isoformat()
 ZOMBIE_DAYS = 365  # no construction work filed in the last year => zombie
-RUN_GAP_BRIDGE = timedelta(days=60)  # gap shorter than this stays in the same shed-run
+RUN_GAP_BRIDGE = timedelta(days=30)  # gap ≤30 days = paperwork lag; longer = real gap
 
 UA = "vital-city-sidewalk-sheds/0.1 (https://github.com/vitalcity-nyc)"
 
@@ -67,8 +67,14 @@ def fetch_all(resource: str, where: str, select: str = "*", page: int = 50000, s
 def parse_dt(s):
     if not s:
         return None
+    s = s.replace("Z", "")
     try:
-        return datetime.fromisoformat(s.replace("Z", "")).date()
+        return datetime.fromisoformat(s).date()
+    except Exception:
+        pass
+    # Legacy DOB permit dataset stores dates as MM/DD/YYYY strings.
+    try:
+        return datetime.strptime(s.split(" ")[0], "%m/%d/%Y").date()
     except Exception:
         return None
 
@@ -445,6 +451,7 @@ def main():
         "with_open_class_c": sum(1 for s in sheds if s.get("hpd_c",0) > 0),
         "in_aep": sum(1 for s in sheds if s.get("aep")),
         "high_distress": sum(1 for s in sheds if s.get("distress",0) >= 10),
+        "over_10y": sum(1 for s in sheds if s["days"] >= 365 * 10),
     }
 
     (DATA / "sheds.json").write_text(json.dumps(sheds, separators=(",", ":")))
