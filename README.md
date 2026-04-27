@@ -15,7 +15,7 @@ Designed as a companion embed to a longer article. Built to Vital City visual sp
 
 - `scripts/build_data.py` pulls four NYC Open Data endpoints (DOB NOW permits, legacy DOB permits, DOB NOW job filings, PLUTO) and writes three small JSON files into `data/`
 - `index.html` + `assets/` is a static embed — Leaflet map, vanilla JS, no build step
-- GitHub Actions runs `build_data.py` nightly and commits the refreshed JSON
+- A nightly GitHub Actions workflow (in `.github/workflows/refresh.yml`, applied separately because the initial push token lacked the `workflow` scope) runs `build_data.py` and commits the refreshed JSON. Re-add it via the GitHub web UI or push it from a token with the `workflow` scope.
 
 See [methodology.html](methodology.html) for the full transparency pass.
 
