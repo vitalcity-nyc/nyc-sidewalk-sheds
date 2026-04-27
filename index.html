@@ -41,7 +41,7 @@
 
   <nav class="tabs" role="tablist">
     <button class="tab active" data-view="map" role="tab">Map</button>
-    <button class="tab" data-view="zombies" role="tab">Zombie sheds</button>
+    <button class="tab" data-view="zombies" role="tab">Top sheds</button>
     <button class="tab" data-view="neighborhoods" role="tab">By neighborhood</button>
     <a class="meth" href="methodology.html" target="_blank" rel="noopener">Methodology</a>
   </nav>
@@ -68,7 +68,10 @@
       <input type="checkbox" id="f-zombie"> Zombie sheds only
     </label>
     <label class="check">
-      <input type="checkbox" id="f-311"> Show 311 scaffold complaints (past year)
+      <input type="checkbox" id="f-311"> Show 311 scaffold complaints (past 12 months)
+    </label>
+    <label class="check">
+      <input type="checkbox" id="f-chronic"> Chronic sites only (2+ complaints)
     </label>
     <label class="search">Address or owner
       <input type="search" id="f-q" placeholder="e.g. Broadway, NYCHA">
@@ -87,25 +90,40 @@
         <span><i style="background:#ff7c53"></i>1 – 3 years</span>
         <span><i style="background:#e7466d"></i>3 – 5 years</span>
         <span><i style="background:#d2232a"></i>Over 5 years</span>
-        <span class="legend-311" hidden><i class="x" style="background:#217ebe"></i>311 complaint</span>
+        <span class="legend-311" hidden><i style="background:#217ebe"></i>311 complaint (past 12 months)</span>
+        <span class="legend-311" hidden><i style="background:#0a4f80;width:14px;height:14px"></i>Chronic site (2+ complaints)</span>
       </aside>
     </section>
 
     <section class="view view-zombies" id="view-zombies">
-      <p class="caption">Sheds up over a year with no recent non-shed construction work filed at the same building. Sorted by days up.</p>
+      <p class="caption">Top 200 active sheds. Click any column header to sort. Toggle "Zombies only" or filter by borough above. Click a row to find that shed on the map.</p>
       <div class="table-wrap">
-        <table id="zombie-table">
-          <thead><tr><th>Days up</th><th>Address</th><th>Borough</th><th>Owner (per PLUTO)</th><th>Year built</th></tr></thead>
+        <table id="zombie-table" class="sortable">
+          <thead><tr>
+            <th data-key="days" data-type="num" class="sorted-desc">Days up</th>
+            <th data-key="addr" data-type="str">Address</th>
+            <th data-key="boro" data-type="str">Borough</th>
+            <th data-key="owner" data-type="str">Owner (per PLUTO)</th>
+            <th data-key="yrbuilt" data-type="num">Year built</th>
+            <th data-key="zombie" data-type="num">Zombie?</th>
+            <th data-key="complaints" data-type="num">311 complaints (past year)</th>
+          </tr></thead>
           <tbody></tbody>
         </table>
       </div>
     </section>
 
     <section class="view view-neighborhoods" id="view-neighborhoods">
-      <p class="caption">Community districts ranked by total shed-days (sum of days each active shed has been up). Click a row to filter the map.</p>
+      <p class="caption">Community districts ranked by total shed-days (sum of days each active shed has been up). Click a row to filter the map. Click any column header to sort.</p>
       <div class="table-wrap">
-        <table id="cd-table">
-          <thead><tr><th>Community district</th><th>Active sheds</th><th>Total shed-days</th><th>Zombies</th><th>Avg days/shed</th></tr></thead>
+        <table id="cd-table" class="sortable">
+          <thead><tr>
+            <th data-key="cd" data-type="str">Community district</th>
+            <th data-key="sheds" data-type="num">Active sheds</th>
+            <th data-key="shed_days" data-type="num" class="sorted-desc">Total shed-days</th>
+            <th data-key="zombies" data-type="num">Zombies</th>
+            <th data-key="avg" data-type="num">Avg days/shed</th>
+          </tr></thead>
           <tbody></tbody>
         </table>
       </div>

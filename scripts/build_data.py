@@ -291,6 +291,30 @@ def main():
         })
     print(f"  311 complaints: {len(complaints):,}", file=sys.stderr)
 
+    # Group complaints by ~address to flag chronic sites. Round lat/lon to ~10m
+    # so adjacent reports cluster, then count.
+    loc_counts = defaultdict(list)
+    for c in complaints:
+        key = (round(c["lat"], 4), round(c["lon"], 4))
+        loc_counts[key].append(c)
+    for c in complaints:
+        key = (round(c["lat"], 4), round(c["lon"], 4))
+        c["loc_count"] = len(loc_counts[key])
+    chronic = []
+    for (lat, lon), items in loc_counts.items():
+        if len(items) >= 2:
+            items_sorted = sorted(items, key=lambda x: x["created"], reverse=True)
+            chronic.append({
+                "lat": lat, "lon": lon,
+                "addr": items_sorted[0]["addr"],
+                "boro": items_sorted[0]["boro"],
+                "count": len(items),
+                "last_filed": items_sorted[0]["created"],
+                "first_filed": items_sorted[-1]["created"],
+            })
+    chronic.sort(key=lambda x: -x["count"])
+    print(f"  chronic complaint sites (>=2 complaints): {len(chronic):,}", file=sys.stderr)
+
     # 8. Community-district aggregation (for choropleth + equity).
     cd_agg = defaultdict(lambda: {"sheds": 0, "shed_days": 0, "zombies": 0})
     for s in sheds:
@@ -315,11 +339,13 @@ def main():
         "zombies": sum(1 for s in sheds if s["zombie"]),
         "median_days": sorted(s["days"] for s in sheds)[len(sheds) // 2] if sheds else 0,
         "complaints_12mo": len(complaints),
+        "chronic_sites": len(chronic),
     }
 
     (DATA / "sheds.json").write_text(json.dumps(sheds, separators=(",", ":")))
     (DATA / "cd.json").write_text(json.dumps(cd_rows, separators=(",", ":")))
     (DATA / "complaints311.json").write_text(json.dumps(complaints, separators=(",", ":")))
+    (DATA / "chronic311.json").write_text(json.dumps(chronic, separators=(",", ":")))
     (DATA / "summary.json").write_text(json.dumps(summary, indent=2))
     print(f"Wrote {DATA}/", file=sys.stderr)
     print(json.dumps(summary, indent=2))
