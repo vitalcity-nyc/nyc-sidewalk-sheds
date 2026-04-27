@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NYC sidewalk sheds — interactive tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="embed">
+  <header class="topbar">
+    <div class="stat">
+      <span class="num" id="s-total">—</span>
+      <span class="lbl">active sheds</span>
+    </div>
+    <div class="stat">
+      <span class="num" id="s-median">—</span>
+      <span class="lbl">median days up</span>
+    </div>
+    <div class="stat">
+      <span class="num" id="s-1y">—</span>
+      <span class="lbl">up over 1 year</span>
+    </div>
+    <div class="stat">
+      <span class="num" id="s-5y">—</span>
+      <span class="lbl">up over 5 years</span>
+    </div>
+    <div class="stat">
+      <span class="num" id="s-zombie">—</span>
+      <span class="lbl">zombie sheds</span>
+    </div>
+    <div class="stat asof">
+      <span class="num" id="s-asof">—</span>
+      <span class="lbl">data as of</span>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-view="map" role="tab">Map</button>
+    <button class="tab" data-view="zombies" role="tab">Zombie sheds</button>
+    <button class="tab" data-view="neighborhoods" role="tab">By neighborhood</button>
+    <a class="meth" href="methodology.html" target="_blank" rel="noopener">Methodology</a>
+  </nav>
+
+  <section class="filters" id="filters">
+    <label>Borough
+      <select id="f-boro">
+        <option value="">All</option>
+        <option>Manhattan</option><option>Brooklyn</option><option>Queens</option>
+        <option>Bronx</option><option>Staten Island</option>
+      </select>
+    </label>
+    <label>Duration
+      <select id="f-dur">
+        <option value="">Any</option>
+        <option value="0-90">Under 90 days</option>
+        <option value="90-365">90 days – 1 year</option>
+        <option value="365-1095">1–3 years</option>
+        <option value="1095-1825">3–5 years</option>
+        <option value="1825-99999">Over 5 years</option>
+      </select>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="f-zombie"> Zombie sheds only
+    </label>
+    <label class="check">
+      <input type="checkbox" id="f-311"> Show 311 scaffold complaints (past year)
+    </label>
+    <label class="search">Address or owner
+      <input type="search" id="f-q" placeholder="e.g. Broadway, NYCHA">
+    </label>
+    <span class="count" id="f-count"></span>
+    <button class="reset" id="f-reset">Reset</button>
+  </section>
+
+  <main>
+    <section class="view view-map active" id="view-map">
+      <div id="map"></div>
+      <aside class="legend">
+        <strong>Days up</strong>
+        <span><i style="background:#57aa4a"></i>Under 90</span>
+        <span><i style="background:#dde44c"></i>90 – 365</span>
+        <span><i style="background:#ff7c53"></i>1 – 3 years</span>
+        <span><i style="background:#e7466d"></i>3 – 5 years</span>
+        <span><i style="background:#d2232a"></i>Over 5 years</span>
+        <span class="legend-311" hidden><i class="x" style="background:#217ebe"></i>311 complaint</span>
+      </aside>
+    </section>
+
+    <section class="view view-zombies" id="view-zombies">
+      <p class="caption">Sheds up over a year with no recent non-shed construction work filed at the same building. Sorted by days up.</p>
+      <div class="table-wrap">
+        <table id="zombie-table">
+          <thead><tr><th>Days up</th><th>Address</th><th>Borough</th><th>Owner (per PLUTO)</th><th>Year built</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view view-neighborhoods" id="view-neighborhoods">
+      <p class="caption">Community districts ranked by total shed-days (sum of days each active shed has been up). Click a row to filter the map.</p>
+      <div class="table-wrap">
+        <table id="cd-table">
+          <thead><tr><th>Community district</th><th>Active sheds</th><th>Total shed-days</th><th>Zombies</th><th>Avg days/shed</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="src">
+    Source: NYC Open Data (DOB NOW: Build approved permits, DOB legacy permit issuance, DOB NOW job filings, PLUTO). Updated nightly.
+  </footer>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

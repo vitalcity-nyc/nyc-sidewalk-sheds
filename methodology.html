@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Methodology — NYC sidewalk shed tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'DM Sans', sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #181818; line-height: 1.55; }
+  h1 { font-size: 26px; letter-spacing: -0.01em; margin-bottom: 6px; }
+  h2 { font-size: 17px; margin: 26px 0 8px; border-top: 1px solid #e6e6e0; padding-top: 18px; }
+  h3 { font-size: 14px; margin: 16px 0 4px; color: #5a5a52; text-transform: uppercase; letter-spacing: 0.06em; }
+  p, li { font-size: 14px; }
+  ul { padding-left: 20px; margin: 6px 0 12px; }
+  code { font-family: 'SF Mono', Consolas, monospace; font-size: 12px; background: #f6f6f3; padding: 1px 4px; border-radius: 2px; }
+  a { color: #217ebe; }
+  .lede { color: #5a5a52; font-size: 15px; }
+  .caveat { background: #fff8e1; border-left: 3px solid #ff7c53; padding: 10px 14px; font-size: 13px; margin: 14px 0; }
+</style>
+</head>
+<body>
+<h1>Methodology</h1>
+<p class="lede">How this tracker is built, what its numbers mean, and where its blind spots are. The whole pipeline — from API to embed — is open source.</p>
+
+<h2>What counts as an "active" sidewalk shed</h2>
+<p>An active shed is any current Department of Buildings (DOB) sidewalk shed permit where:</p>
+<ul>
+  <li>Work type is <code>Sidewalk Shed</code> in DOB NOW: Build,</li>
+  <li>Permit status is <code>Permit Issued</code>, and</li>
+  <li>Permit expiration date is on or after today.</li>
+</ul>
+<p>Permits are filed and renewed under unique permit numbers, but the shed itself is a continuous physical structure tied to a building. We aggregate by Building Identification Number (BIN). Where multiple active permits exist for the same BIN we keep the most-recently-issued one for attribution but compute the start date from the full permit history at that building (see below).</p>
+
+<h2>How "days up" is calculated</h2>
+<p>For each BIN with an active shed permit, we walk back through all of that BIN's shed permits — both DOB NOW and the legacy DOB Permit Issuance dataset — and find contiguous runs of permit coverage. A run continues as long as each permit's issuance is within 60 days of the prior permit's expiration; gaps longer than 60 days break the run.</p>
+<p>The start of the current run is treated as the day the shed went up. "Days up" is the number of days between that date and today.</p>
+<div class="caveat"><strong>Caveat.</strong> If a shed truly came down for, say, 45 days during construction and went back up, our run-bridging counts that as continuous. The opposite mistake — over-splitting because of paperwork gaps — is also possible. The 60-day bridge is a reasonable middle setting; tightening it understates duration, loosening overstates it.</div>
+
+<h2>What makes a "zombie shed"</h2>
+<p>A shed is flagged as a zombie when both of these are true:</p>
+<ul>
+  <li>It has been up for at least 365 days, and</li>
+  <li>No DOB job filing for non-shed work (the <code>shed='0'</code> flag in DOB NOW Job Filings) has had a status update on its building in the last 365 days.</li>
+</ul>
+<p>The intent is to surface sheds that are still up despite no construction work proceeding. This isn't a perfect proxy — work can be filed under a related building, or stalled work can have recent paperwork — but it does flag the buildings most worth a closer look.</p>
+
+<h2>Owner attribution</h2>
+<p>Owner names in popups come from PLUTO's <code>ownername</code> field, joined to the shed permit on Borough-Block-Lot (BBL). PLUTO records the owner of the tax lot, which is typically the building owner — not the scaffolding contractor that filed the shed permit. For roughly 1% of sheds the BBL doesn't match a current PLUTO record, and the popup falls back to the permit's stated owner.</p>
+<div class="caveat"><strong>Caveat.</strong> Many NYC buildings are owned by single-purpose LLCs whose names tell you nothing about the human or company behind them. Resolving those LLCs to beneficial owners requires HPD registrations and ACRIS deeds work that this tracker doesn't yet attempt.</div>
+
+<h2>Data sources</h2>
+<ul>
+  <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-NOW-Build-Approved-Permits/rbx6-tga4">DOB NOW: Build approved permits</a> (<code>rbx6-tga4</code>) — current shed permits</li>
+  <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-Permit-Issuance/ipu4-2q9a">DOB Permit Issuance — legacy</a> (<code>ipu4-2q9a</code>) — pre-DOB-NOW shed history</li>
+  <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-NOW-Build-Job-Application-Filings/w9ak-ipjd">DOB NOW: Build job application filings</a> (<code>w9ak-ipjd</code>) — for zombie detection</li>
+  <li><a href="https://data.cityofnewyork.us/City-Government/Primary-Land-Use-Tax-Lot-Output-PLUTO-/64uk-42ks">PLUTO</a> (<code>64uk-42ks</code>) — building owner, year built, building class</li>
+</ul>
+<p>All data is fetched from NYC Open Data's Socrata API. The build pipeline is <code>scripts/build_data.py</code> and runs nightly via GitHub Actions.</p>
+
+<h2>What this tracker does <em>not</em> do</h2>
+<ul>
+  <li>It only covers sheds permitted under DOB. Unpermitted sheds — and there are some — won't appear.</li>
+  <li>"Days up" measures permit coverage, not what is physically standing on the sidewalk on any given day.</li>
+  <li>Equity overlays (income, race, retail vacancy by community district) are a planned next step and not yet included.</li>
+  <li>Local Law 11 (Façade Inspection Safety Program) cycle context — which shed-buildings are inside an open FISP cycle — is not yet joined in.</li>
+</ul>
+
+<h2>Numbers in the headline strip</h2>
+<ul>
+  <li><strong>Active sheds.</strong> Distinct buildings with at least one active shed permit.</li>
+  <li><strong>Median days up.</strong> Median across all active sheds of the days-up calculation above.</li>
+  <li><strong>Up over 1 year / 5 years.</strong> Counts of buildings whose current shed run started 365 / 1,825 days ago or more.</li>
+  <li><strong>Zombie sheds.</strong> Active sheds meeting the zombie definition above.</li>
+  <li><strong>Data as of.</strong> Date the pipeline last ran successfully.</li>
+</ul>
+
+<p style="margin-top: 30px"><a href="index.html">← Back to the map</a></p>
+</body>
+</html>
