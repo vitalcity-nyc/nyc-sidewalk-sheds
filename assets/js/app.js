@@ -12,7 +12,15 @@
   const fmt = (n) => n.toLocaleString('en-US');
   const titleCase = (s) => s.replace(/\w\S*/g, t => t[0].toUpperCase() + t.slice(1).toLowerCase());
 
-  const state = { sheds: [], cd: [], complaints: [], chronic: [], filtered: [], view: 'map', layer: null, complaintLayer: null };
+  const state = { sheds: [], cd: [], complaints: [], chronic: [], filtered: [], view: 'map', layer: null, complaintLayer: null, buckets: new Set() };
+
+  function bucketOf(days) {
+    if (days < 90) return '0-90';
+    if (days < 365) return '90-365';
+    if (days < 1095) return '365-1095';
+    if (days < 1825) return '1095-1825';
+    return '1825-99999';
+  }
 
   // ── load data ────────────────────────────────────────────────────────────
   Promise.all([
@@ -90,7 +98,6 @@
     if (state.complaintLayer) { state.complaintLayer.remove(); state.complaintLayer = null; }
     const on = document.getElementById('f-311').checked;
     const chronicOnly = document.getElementById('f-chronic').checked;
-    document.querySelector('.legend-311').hidden = !on;
     if (!on) return;
     // Group complaints by rounded location so each pin shows total count.
     const groups = {};
@@ -155,11 +162,9 @@
 
   function applyFilters() {
     const f = getFilters();
-    let [lo, hi] = [0, 99999];
-    if (f.dur) [lo, hi] = f.dur.split('-').map(Number);
     state.filtered = state.sheds.filter(s => {
       if (f.boro && s.boro !== f.boro) return false;
-      if (f.dur && (s.days < lo || s.days > hi)) return false;
+      if (state.buckets.size && !state.buckets.has(bucketOf(s.days))) return false;
       if (f.zombie && !s.zombie) return false;
       if (f.q) {
         const hay = (s.addr + ' ' + s.boro + ' ' + s.owner).toLowerCase();
@@ -174,22 +179,57 @@
     syncURL(f);
   }
 
-  ['f-boro','f-dur','f-zombie','f-q'].forEach(id => {
+  ['f-boro','f-zombie','f-q'].forEach(id => {
     document.getElementById(id).addEventListener('input', applyFilters);
-  });
-  document.getElementById('f-311').addEventListener('change', render311);
-  document.getElementById('f-chronic').addEventListener('change', () => {
-    if (!document.getElementById('f-311').checked) {
-      document.getElementById('f-311').checked = true;
-    }
-    render311();
   });
   document.getElementById('f-reset').addEventListener('click', () => {
     document.getElementById('f-boro').value = '';
-    document.getElementById('f-dur').value = '';
     document.getElementById('f-zombie').checked = false;
     document.getElementById('f-q').value = '';
+    document.getElementById('f-311').checked = false;
+    document.getElementById('f-chronic').checked = false;
+    state.buckets.clear();
+    syncLegend();
+    render311();
     applyFilters();
+  });
+
+  // ── legend buttons ───────────────────────────────────────────────────────
+  function syncLegend() {
+    const root = document.getElementById('legend');
+    const anyActive = state.buckets.size > 0
+      || document.getElementById('f-311').checked
+      || document.getElementById('f-chronic').checked;
+    root.classList.toggle('has-active', anyActive);
+    root.querySelectorAll('.leg-btn[data-bucket]').forEach(b => {
+      b.classList.toggle('active', state.buckets.has(b.dataset.bucket));
+    });
+    root.querySelector('.leg-btn[data-toggle="311"]').classList.toggle('active',
+      document.getElementById('f-311').checked);
+    root.querySelector('.leg-btn[data-toggle="chronic"]').classList.toggle('active',
+      document.getElementById('f-chronic').checked);
+  }
+  document.querySelectorAll('#legend .leg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.bucket) {
+        const b = btn.dataset.bucket;
+        if (state.buckets.has(b)) state.buckets.delete(b); else state.buckets.add(b);
+        syncLegend();
+        applyFilters();
+      } else if (btn.dataset.toggle === '311') {
+        const cb = document.getElementById('f-311');
+        cb.checked = !cb.checked;
+        if (!cb.checked) document.getElementById('f-chronic').checked = false;
+        syncLegend();
+        render311();
+      } else if (btn.dataset.toggle === 'chronic') {
+        const cb = document.getElementById('f-chronic');
+        cb.checked = !cb.checked;
+        if (cb.checked) document.getElementById('f-311').checked = true;
+        syncLegend();
+        render311();
+      }
+    });
   });
 
   // ── tabs ─────────────────────────────────────────────────────────────────
@@ -260,10 +300,7 @@
         const hay = (s.addr + ' ' + s.boro + ' ' + s.owner).toLowerCase();
         if (!hay.includes(f.q)) return false;
       }
-      if (f.dur) {
-        const [lo, hi] = f.dur.split('-').map(Number);
-        if (s.days < lo || s.days > hi) return false;
-      }
+      if (state.buckets.size && !state.buckets.has(bucketOf(s.days))) return false;
       return true;
     });
     const sort = tableSortState('zombie-table') || { key: 'days', type: 'num', dir: 'desc' };
@@ -338,7 +375,10 @@
     const p = new URLSearchParams(location.search);
     if (p.get('view')) state.view = p.get('view');
     if (p.get('boro')) document.getElementById('f-boro').value = p.get('boro');
-    if (p.get('dur')) document.getElementById('f-dur').value = p.get('dur');
+    if (p.get('buckets')) p.get('buckets').split(',').forEach(b => state.buckets.add(b));
+    if (p.get('c311') === '1') document.getElementById('f-311').checked = true;
+    if (p.get('chronic') === '1') document.getElementById('f-chronic').checked = true;
+    syncLegend();
     if (p.get('zombie') === '1') document.getElementById('f-zombie').checked = true;
     if (p.get('q')) document.getElementById('f-q').value = p.get('q');
     if (state.view !== 'map') switchView(state.view);
@@ -347,9 +387,11 @@
     const p = new URLSearchParams();
     if (state.view !== 'map') p.set('view', state.view);
     if (f.boro) p.set('boro', f.boro);
-    if (f.dur) p.set('dur', f.dur);
+    if (state.buckets.size) p.set('buckets', [...state.buckets].join(','));
     if (f.zombie) p.set('zombie', '1');
     if (f.q) p.set('q', f.q);
+    if (document.getElementById('f-311').checked) p.set('c311', '1');
+    if (document.getElementById('f-chronic').checked) p.set('chronic', '1');
     const url = location.pathname + (p.toString() ? '?' + p : '');
     history.replaceState(null, '', url);
     // notify parent for iframe-resize
