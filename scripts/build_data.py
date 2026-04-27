@@ -171,6 +171,79 @@ def main():
         if (i // CHUNK) % 5 == 0:
             print(f"  PLUTO progress: {i+len(bbls):,}/{len(active_bbls):,}", file=sys.stderr)
 
+    # 4a. HPD open B/C violations per shed BBL — aggregate citywide then index.
+    print("Fetching HPD open B/C violation counts (citywide aggregate)...", file=sys.stderr)
+    hpd_open = defaultdict(lambda: {"b": 0, "c": 0})
+    for cls in ("B", "C"):
+        select = "boroid,block,lot,count(*) as cnt"
+        where = f"violationstatus='Open' AND class='{cls}'"
+        url = (
+            "https://data.cityofnewyork.us/resource/wvxf-dwi5.json"
+            f"?$select={quote(select)}&$where={quote(where)}"
+            f"&$group={quote('boroid,block,lot')}&$limit=200000"
+        )
+        req = Request(url, headers={"User-Agent": UA})
+        try:
+            with urlopen(req, timeout=300) as r:
+                rows = json.loads(r.read())
+        except Exception as e:
+            print(f"  HPD class-{cls} fetch failed ({e}); skipping", file=sys.stderr)
+            rows = []
+        # Build BBL strings from boroid+block+lot.
+        for row in rows:
+            try:
+                boro = row["boroid"]
+                block = str(int(row["block"])).zfill(5)
+                lot = str(int(row["lot"])).zfill(4)
+                bbl = f"{boro}{block}{lot}"
+            except Exception:
+                continue
+            hpd_open[bbl][cls.lower()] += int(row["cnt"])
+        print(f"  class {cls}: {len(rows):,} BBLs aggregated", file=sys.stderr)
+    print(f"  shed-BBLs with open HPD B/C violations: {sum(1 for b in active_bbls if hpd_open.get(b,{}).get('b',0)+hpd_open.get(b,{}).get('c',0) > 0):,}", file=sys.stderr)
+
+    # 4a-bis. HPD Alternative Enforcement Program list (distressed-building flag).
+    print("Fetching HPD AEP list...", file=sys.stderr)
+    aep_bins = set()
+    aep_bbls = set()
+    try:
+        aep = fetch_all("hcir-3275", "1=1", select="*", page=20000)
+        for r in aep:
+            if r.get("bin"): aep_bins.add(str(r["bin"]))
+            if r.get("bbl"): aep_bbls.add(str(r["bbl"]).split(".")[0])
+        print(f"  AEP total: {len(aep):,} (bins: {len(aep_bins)}, bbls: {len(aep_bbls)})", file=sys.stderr)
+    except Exception as e:
+        print(f"  AEP fetch failed ({e})", file=sys.stderr)
+        aep = []
+
+    # 4b. FISP (Local Law 11) filings for the shed BINs.
+    print(f"Fetching FISP filings for {len(active_bins):,} BINs...", file=sys.stderr)
+    fisp_by_bin = {}
+    bin_list = sorted(active_bins)
+    for i in range(0, len(bin_list), CHUNK):
+        bins = bin_list[i : i + CHUNK]
+        in_clause = ",".join(f"'{b}'" for b in bins)
+        where = f"bin in({in_clause})"
+        select = "bin,cycle,current_status,filing_status,sequence_no,late_filing_amt,failure_to_file_amt,failure_to_correct_amt"
+        url = (
+            "https://data.cityofnewyork.us/resource/xubg-57si.json"
+            f"?$select={quote(select)}&$where={quote(where)}&$limit=50000"
+        )
+        req = Request(url, headers={"User-Agent": UA})
+        with urlopen(req, timeout=120) as r:
+            chunk = json.loads(r.read())
+        for row in chunk:
+            b = str(row.get("bin"))
+            cycle = int(row.get("cycle") or 0)
+            seq = int(row.get("sequence_no") or 0)
+            cur = fisp_by_bin.get(b)
+            # Keep the highest-cycle, then highest-sequence_no record per BIN.
+            if cur is None or (cycle, seq) > (int(cur.get("cycle") or 0), int(cur.get("sequence_no") or 0)):
+                fisp_by_bin[b] = row
+        if (i // CHUNK) % 5 == 0:
+            print(f"  FISP progress: {i+len(bins):,}/{len(bin_list):,}", file=sys.stderr)
+    print(f"  shed-BINs with FISP record: {len(fisp_by_bin):,}", file=sys.stderr)
+
     # 5. Recent construction job filings (for zombie detection) — DOB NOW Job Filings.
     cutoff = (TODAY - timedelta(days=ZOMBIE_DAYS)).isoformat()
     print(f"Fetching recent DOB NOW job filings since {cutoff}...", file=sys.stderr)
@@ -225,7 +298,24 @@ def main():
             lat = lon = None
         if lat is None or lon is None:
             continue
-        is_zombie = days_up >= ZOMBIE_DAYS and bin_ not in bins_with_recent_work
+        fisp = fisp_by_bin.get(bin_, {})
+        fisp_status = (fisp.get("current_status") or "").upper() or None
+        fisp_cycle = fisp.get("cycle") or None
+        hpd = hpd_open.get(bbl, {"b": 0, "c": 0})
+        hpd_b = hpd.get("b", 0)
+        hpd_c = hpd.get("c", 0)
+        is_aep = bin_ in aep_bins or bbl in aep_bbls
+        # Distress score: combines HPD severity + AEP. C is hazardous (weight 3),
+        # B is significant (weight 1), AEP adds 10. Capped at 30 for display.
+        distress = min(hpd_c * 3 + hpd_b + (10 if is_aep else 0), 30)
+        # A "true" zombie: long-standing, no recent construction work, AND no
+        # documented unsafe-facade filing that would explain the shed.
+        is_zombie = (
+            days_up >= ZOMBIE_DAYS
+            and bin_ not in bins_with_recent_work
+            and fisp_status not in ("UNSAFE",)
+        )
+        fisp_justified = fisp_status == "UNSAFE"
         sheds.append({
             "bin": bin_,
             "bbl": bbl,
@@ -247,6 +337,13 @@ def main():
             "bclass": plut.get("bldgclass") or "",
             "reason": r.get("filing_reason") or "",
             "zombie": is_zombie,
+            "fisp": fisp_status,
+            "fisp_cycle": fisp_cycle,
+            "fisp_just": fisp_justified,
+            "hpd_b": hpd_b,
+            "hpd_c": hpd_c,
+            "aep": is_aep,
+            "distress": distress,
         })
 
     sheds.sort(key=lambda s: -s["days"])
@@ -340,12 +437,53 @@ def main():
         "median_days": sorted(s["days"] for s in sheds)[len(sheds) // 2] if sheds else 0,
         "complaints_12mo": len(complaints),
         "chronic_sites": len(chronic),
+        "fisp_unsafe": sum(1 for s in sheds if s["fisp"] == "UNSAFE"),
+        "fisp_swarmp": sum(1 for s in sheds if s["fisp"] == "SWARMP"),
+        "fisp_safe": sum(1 for s in sheds if s["fisp"] == "SAFE"),
+        "fisp_no_filing": sum(1 for s in sheds if not s["fisp"]),
+        "with_open_hpd": sum(1 for s in sheds if (s.get("hpd_b",0)+s.get("hpd_c",0)) > 0),
+        "with_open_class_c": sum(1 for s in sheds if s.get("hpd_c",0) > 0),
+        "in_aep": sum(1 for s in sheds if s.get("aep")),
+        "high_distress": sum(1 for s in sheds if s.get("distress",0) >= 10),
     }
 
     (DATA / "sheds.json").write_text(json.dumps(sheds, separators=(",", ":")))
     (DATA / "cd.json").write_text(json.dumps(cd_rows, separators=(",", ":")))
     (DATA / "complaints311.json").write_text(json.dumps(complaints, separators=(",", ":")))
     (DATA / "chronic311.json").write_text(json.dumps(chronic, separators=(",", ":")))
+
+    # 9. Monthly active-shed trend, 2010-01-01 to today.
+    print("Computing monthly active-shed history (2010 onward)...", file=sys.stderr)
+    runs_per_bin = []
+    for bin_, dates in history.items():
+        items = sorted([(i, e) for i, e in dates if i and e], key=lambda x: x[0])
+        if not items:
+            continue
+        cur_s, cur_e = items[0]
+        for i, e in items[1:]:
+            if i <= cur_e + RUN_GAP_BRIDGE:
+                if e > cur_e:
+                    cur_e = e
+            else:
+                runs_per_bin.append((cur_s, cur_e))
+                cur_s, cur_e = i, e
+        runs_per_bin.append((cur_s, cur_e))
+    months = []
+    y, m = 2010, 1
+    while (y, m) <= (TODAY.year, TODAY.month):
+        d = date(y, m, 1)
+        active_runs = [r for r in runs_per_bin if r[0] <= d <= r[1]]
+        count = len(active_runs)
+        if count:
+            durations = sorted((d - r[0]).days for r in active_runs)
+            median = durations[len(durations) // 2]
+        else:
+            median = 0
+        months.append({"m": d.isoformat()[:7], "n": count, "med": median})
+        m += 1
+        if m > 12: m = 1; y += 1
+    (DATA / "trend.json").write_text(json.dumps(months, separators=(",", ":")))
+    print(f"  trend points: {len(months):,} (latest: {months[-1] if months else 'none'})", file=sys.stderr)
     (DATA / "summary.json").write_text(json.dumps(summary, indent=2))
     print(f"Wrote {DATA}/", file=sys.stderr)
     print(json.dumps(summary, indent=2))

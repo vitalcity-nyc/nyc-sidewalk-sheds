@@ -12,7 +12,7 @@
   const fmt = (n) => n.toLocaleString('en-US');
   const titleCase = (s) => s.replace(/\w\S*/g, t => t[0].toUpperCase() + t.slice(1).toLowerCase());
 
-  const state = { sheds: [], cd: [], complaints: [], chronic: [], filtered: [], view: 'map', layer: null, complaintLayer: null, buckets: new Set() };
+  const state = { sheds: [], cd: [], complaints: [], chronic: [], filtered: [], view: 'map', layer: null, complaintLayer: null, buckets: new Set(), fisp: new Set(), flags: new Set() };
 
   function bucketOf(days) {
     if (days < 90) return '0-90';
@@ -29,7 +29,10 @@
     fetch('data/cd.json').then(r => r.json()),
     fetch('data/complaints311.json').then(r => r.json()).catch(() => []),
     fetch('data/chronic311.json').then(r => r.json()).catch(() => []),
-  ]).then(([sheds, summary, cd, complaints, chronic]) => {
+    fetch('data/trend.json').then(r => r.json()).catch(() => []),
+  ]).then(([sheds, summary, cd, complaints, chronic, trend]) => {
+    state.summary = summary;
+    state.trend = trend;
     state.sheds = sheds;
     state.cd = cd;
     state.complaints = complaints;
@@ -44,6 +47,8 @@
     });
     attachSort('zombie-table', null, renderZombieTable);
     attachSort('cd-table', null, renderCDTable);
+    renderFindings();
+    renderTrend();
     paintSummary(summary);
     initMap();
     renderCDTable();
@@ -60,7 +65,34 @@
     document.getElementById('s-1y').textContent = fmt(s.over_1y);
     document.getElementById('s-5y').textContent = fmt(s.over_5y);
     document.getElementById('s-zombie').textContent = fmt(s.zombies);
+    document.getElementById('s-unsafe').textContent = fmt(s.fisp_unsafe || 0);
+    document.getElementById('s-distress').textContent = fmt(s.high_distress || 0);
     document.getElementById('s-asof').textContent = s.as_of;
+  }
+
+  function passesFlags(s) {
+    if (!state.flags.size) return true;
+    if (state.flags.has('distress') && (s.distress || 0) < 10) return false;
+    if (state.flags.has('aep') && !s.aep) return false;
+    return true;
+  }
+
+  const FISP_KEY = (s) => s.fisp || 'NONE';
+  const FISP_LABEL = { UNSAFE: 'Unsafe', SWARMP: 'SWARMP', SAFE: 'Safe', NONE: 'No filing', 'NO REPORT FILED': 'No report filed' };
+  const FISP_COLOR = { UNSAFE: '#d2232a', SWARMP: '#ff7c53', SAFE: '#57aa4a', NONE: '#9b9fbc', 'NO REPORT FILED': '#9b9fbc' };
+  function fispBadge(s) {
+    const k = FISP_KEY(s);
+    const lbl = FISP_LABEL[k] || k;
+    return `<span class="fisp-badge" style="background:${FISP_COLOR[k] || '#9b9fbc'}">${lbl}</span>`;
+  }
+  function distressCell(s) {
+    const d = s.distress || 0;
+    const parts = [];
+    if (s.hpd_c) parts.push(`<strong style="color:#d2232a">${s.hpd_c}C</strong>`);
+    if (s.hpd_b) parts.push(`<span style="color:#ff7c53">${s.hpd_b}B</span>`);
+    if (s.aep) parts.push('<span class="fisp-badge" style="background:#7d1027">AEP</span>');
+    if (!parts.length) return '<span class="dim">0</span>';
+    return `<span class="num">${d}</span> <small style="color:#5a5a52">(${parts.join(' ')})</small>`;
   }
 
   // ── map ──────────────────────────────────────────────────────────────────
@@ -144,6 +176,8 @@
       <div class="popup-row"><span>First erected</span><span>${s.first || '—'}</span></div>
       <div class="popup-row"><span>Permit expires</span><span>${s.exp || '—'}</span></div>
       <div class="popup-row"><span>Borough</span><span>${s.boro}</span></div>
+      <div class="popup-row"><span>Façade (LL11)</span><span>${FISP_LABEL[FISP_KEY(s)] || FISP_KEY(s)}${s.fisp_cycle ? ` · cycle ${s.fisp_cycle}` : ''}</span></div>
+      ${(s.hpd_c || s.hpd_b || s.aep) ? `<div class="popup-row"><span>Open HPD viol.</span><span>${s.hpd_c || 0} class C, ${s.hpd_b || 0} class B${s.aep ? ' · in AEP' : ''}</span></div>` : ''}
       ${s.yrbuilt ? `<div class="popup-row"><span>Year built</span><span>${s.yrbuilt}</span></div>` : ''}
       ${s.bclass ? `<div class="popup-row"><span>Building class</span><span>${s.bclass}</span></div>` : ''}
       ${s.zombie ? '<div class="popup-zombie">Zombie shed</div>' : ''}
@@ -165,6 +199,8 @@
     state.filtered = state.sheds.filter(s => {
       if (f.boro && s.boro !== f.boro) return false;
       if (state.buckets.size && !state.buckets.has(bucketOf(s.days))) return false;
+      if (state.fisp.size && !state.fisp.has(FISP_KEY(s))) return false;
+      if (!passesFlags(s)) return false;
       if (f.zombie && !s.zombie) return false;
       if (f.q) {
         const hay = (s.addr + ' ' + s.boro + ' ' + s.owner).toLowerCase();
@@ -189,6 +225,8 @@
     document.getElementById('f-311').checked = false;
     document.getElementById('f-chronic').checked = false;
     state.buckets.clear();
+    state.fisp.clear();
+    state.flags.clear();
     syncLegend();
     render311();
     applyFilters();
@@ -204,6 +242,16 @@
     root.querySelectorAll('.leg-btn[data-bucket]').forEach(b => {
       b.classList.toggle('active', state.buckets.has(b.dataset.bucket));
     });
+    root.querySelectorAll('.leg-btn[data-fisp]').forEach(b => {
+      b.classList.toggle('active', state.fisp.has(b.dataset.fisp));
+    });
+    root.querySelectorAll('.leg-btn[data-flag]').forEach(b => {
+      b.classList.toggle('active', state.flags.has(b.dataset.flag));
+    });
+    root.classList.toggle('has-active',
+      state.buckets.size > 0 || state.fisp.size > 0 || state.flags.size > 0
+      || document.getElementById('f-311').checked
+      || document.getElementById('f-chronic').checked);
     root.querySelector('.leg-btn[data-toggle="311"]').classList.toggle('active',
       document.getElementById('f-311').checked);
     root.querySelector('.leg-btn[data-toggle="chronic"]').classList.toggle('active',
@@ -214,6 +262,16 @@
       if (btn.dataset.bucket) {
         const b = btn.dataset.bucket;
         if (state.buckets.has(b)) state.buckets.delete(b); else state.buckets.add(b);
+        syncLegend();
+        applyFilters();
+      } else if (btn.dataset.fisp) {
+        const k = btn.dataset.fisp;
+        if (state.fisp.has(k)) state.fisp.delete(k); else state.fisp.add(k);
+        syncLegend();
+        applyFilters();
+      } else if (btn.dataset.flag) {
+        const k = btn.dataset.flag;
+        if (state.flags.has(k)) state.flags.delete(k); else state.flags.add(k);
         syncLegend();
         applyFilters();
       } else if (btn.dataset.toggle === '311') {
@@ -301,6 +359,8 @@
         if (!hay.includes(f.q)) return false;
       }
       if (state.buckets.size && !state.buckets.has(bucketOf(s.days))) return false;
+      if (state.fisp.size && !state.fisp.has(FISP_KEY(s))) return false;
+      if (!passesFlags(s)) return false;
       return true;
     });
     const sort = tableSortState('zombie-table') || { key: 'days', type: 'num', dir: 'desc' };
@@ -314,6 +374,8 @@
         <td>${s.owner === '—' ? '<span class="dim">—</span>' : titleCase(s.owner)}</td>
         <td class="dim">${s.yrbuilt || '—'}</td>
         <td>${s.zombie ? '<span class="zombie-badge">zombie</span>' : '<span class="dim">—</span>'}</td>
+        <td>${fispBadge(s)}</td>
+        <td class="num">${distressCell(s)}</td>
         <td class="num">${s.complaints ? `<strong>${s.complaints}</strong>` : '<span class="dim">0</span>'}</td>
       </tr>
     `).join('');
@@ -332,6 +394,190 @@
         }, 100);
       });
     });
+  }
+
+  // ── findings ─────────────────────────────────────────────────────────────
+  function renderFindings() {
+    const s = state.summary || {};
+    const sheds = state.sheds;
+    const longest = sheds[0] || {};
+    const findings = [];
+
+    // 1. Trend headline
+    const trend = state.trend || [];
+    const earlyMed = (trend.find(t => t.m === '2018-06') || {}).med;
+    const nowMed = trend.length ? trend[trend.length - 1].med : s.median_days;
+    if (earlyMed && nowMed) {
+      const ratio = (nowMed / earlyMed).toFixed(1);
+      findings.push({
+        kind: 'severe',
+        num: `${ratio}×`,
+        head: 'Sheds stay up far longer than they used to',
+        body: `Median time a shed has been up has gone from <strong>${earlyMed} days in mid-2018</strong> to <strong>${nowMed} days today</strong>. The fleet of sheds isn't necessarily bigger — it's older.`,
+        cta: 'See trend →',
+        action: () => switchView('trend'),
+      });
+    }
+
+    // 2. Unsafe-façade share
+    findings.push({
+      kind: 'context',
+      num: `${fmt(s.fisp_unsafe || 0)}`,
+      head: 'Sheds tied to a documented unsafe-façade filing',
+      body: `Roughly <strong>${Math.round(100 * (s.fisp_unsafe || 0) / (s.total_active || 1))}%</strong> of active sheds are at buildings with an Unsafe filing under Local Law 11. Those sheds are required by law and are the easiest to explain.`,
+      cta: 'Filter map to Unsafe →',
+      action: () => { state.fisp.add('UNSAFE'); switchView('map'); syncLegend(); applyFilters(); },
+    });
+
+    // 3. Safe-but-shedded
+    findings.push({
+      kind: 'severe',
+      num: fmt(s.fisp_safe || 0),
+      head: 'Sheds at buildings the city has rated Safe',
+      body: `These buildings filed a façade-compliance report saying the façade is <strong>safe</strong> — yet the sidewalk shed is still up. A subset deserves direct scrutiny.`,
+      cta: 'Filter map →',
+      action: () => { state.fisp.add('SAFE'); switchView('map'); syncLegend(); applyFilters(); },
+    });
+
+    // 4. Zombies (now FISP-aware)
+    findings.push({
+      kind: 'severe',
+      num: fmt(s.zombies || 0),
+      head: 'Zombie sheds: long-up, no work, no documented hazard',
+      body: `Sheds up over a year, with no recent non-shed construction filed at the building, and no Unsafe FISP filing. Strongest signal of a shed that's just sitting there.`,
+      cta: 'Filter map →',
+      action: () => { document.getElementById('f-zombie').checked = true; switchView('map'); syncLegend(); applyFilters(); },
+    });
+
+    // 5. Open class-C violations
+    findings.push({
+      kind: 'severe',
+      num: fmt(s.with_open_class_c || 0),
+      head: 'Sheds at buildings with hazardous housing violations',
+      body: `<strong>${Math.round(100 * (s.with_open_class_c || 0) / (s.total_active || 1))}%</strong> of shed-bearing buildings have at least one open Class C (immediately hazardous) HPD violation. The shed is often the most visible symptom of a deeper problem.`,
+      cta: 'Filter map to distressed →',
+      action: () => { state.flags.add('distress'); switchView('map'); syncLegend(); applyFilters(); },
+    });
+
+    // 6. AEP buildings
+    if (s.in_aep) findings.push({
+      kind: 'context',
+      num: fmt(s.in_aep),
+      head: 'Sheds at HPD AEP-enrolled buildings',
+      body: `These buildings are formally enrolled in HPD's Alternative Enforcement Program — the city's official list of severely distressed properties. Each shed there is a public-housing-quality emergency in slow motion.`,
+      cta: 'Filter map →',
+      action: () => { state.flags.add('aep'); switchView('map'); syncLegend(); applyFilters(); },
+    });
+
+    // 7. Longest standing
+    if (longest.bin) findings.push({
+      kind: '',
+      num: `${(longest.days/365).toFixed(1)} yr`,
+      head: 'Longest-standing active shed',
+      body: `<strong>${longest.addr}, ${longest.boro}</strong> has had a sidewalk shed for <strong>${fmt(longest.days)} days</strong>. Owner per PLUTO: ${titleCase(longest.owner || 'unknown')}. Façade status: ${FISP_LABEL[FISP_KEY(longest)] || 'no filing'}.`,
+      cta: 'Show on map →',
+      action: () => {
+        switchView('map');
+        setTimeout(() => {
+          map.setView([longest.lat, longest.lon], 17);
+          L.popup({ maxWidth: 280 }).setLatLng([longest.lat, longest.lon]).setContent(popupHTML(longest)).openOn(map);
+        }, 200);
+      },
+    });
+
+    // 8. Concentration
+    const cdTop = state.cd[0];
+    if (cdTop) findings.push({
+      kind: 'context',
+      num: fmt(cdTop.sheds),
+      head: 'Most shed-burdened community district',
+      body: `The single CD with the most active sheds. Top three districts together hold roughly <strong>${Math.round(100 * (state.cd.slice(0,3).reduce((a,c)=>a+c.sheds,0)) / (s.total_active || 1))}%</strong> of citywide sheds.`,
+      cta: 'See ranking →',
+      action: () => switchView('neighborhoods'),
+    });
+
+    // 9. Chronic 311 sites
+    if (s.chronic_sites) findings.push({
+      kind: '',
+      num: fmt(s.chronic_sites),
+      head: 'Chronic 311 complaint sites',
+      body: `Locations with two or more 311 scaffold-safety complaints in the past 12 months. Out of <strong>${fmt(s.complaints_12mo || 0)}</strong> total complaints — most addresses get only one.`,
+      cta: 'Filter map →',
+      action: () => {
+        document.getElementById('f-311').checked = true;
+        document.getElementById('f-chronic').checked = true;
+        switchView('map'); syncLegend(); render311();
+      },
+    });
+
+    const grid = document.getElementById('findings-grid');
+    grid.innerHTML = findings.map((f, i) => `
+      <div class="finding ${f.kind}" data-i="${i}">
+        <div class="finding-num">${f.num}</div>
+        <div class="finding-head">${f.head}</div>
+        <div class="finding-body">${f.body}</div>
+        <div class="finding-cta">${f.cta}</div>
+      </div>
+    `).join('');
+    grid.querySelectorAll('.finding').forEach((el, i) => {
+      el.addEventListener('click', () => findings[i].action());
+    });
+  }
+
+  // ── trend charts ─────────────────────────────────────────────────────────
+  function renderTrend() {
+    const trend = (state.trend || []).filter(t => t.m >= '2018-06');
+    if (!trend.length) return;
+    document.getElementById('t-now').textContent = fmt(trend[trend.length - 1].n);
+    document.getElementById('t-med').textContent = fmt(trend[trend.length - 1].med) + ' days';
+    // Year-ago comparisons.
+    if (trend.length >= 12) {
+      const yago = trend[trend.length - 13];
+      const last = trend[trend.length - 1];
+      const dCount = last.n - yago.n;
+      const dMed = last.med - yago.med;
+      document.getElementById('t-delta-count').className = 'trend-delta ' + (dCount > 0 ? 'up' : 'down');
+      document.getElementById('t-delta-count').textContent =
+        `${dCount >= 0 ? '+' : ''}${fmt(dCount)} vs ${yago.m}`;
+      document.getElementById('t-delta-med').className = 'trend-delta ' + (dMed > 0 ? 'up' : 'down');
+      document.getElementById('t-delta-med').textContent =
+        `${dMed >= 0 ? '+' : ''}${fmt(dMed)} days vs ${yago.m}`;
+    }
+    drawLine('chart-count', trend.map(t => t.n), trend, 'sheds');
+    drawLine('chart-med', trend.map(t => t.med), trend, 'days');
+  }
+
+  function drawLine(id, values, labels, unit) {
+    const svg = document.getElementById(id);
+    const W = 800, H = 200, P = { l: 50, r: 12, t: 12, b: 28 };
+    const xMax = values.length - 1;
+    const yMax = Math.max(...values, 1) * 1.1;
+    const xs = i => P.l + (i / xMax) * (W - P.l - P.r);
+    const ys = v => H - P.b - (v / yMax) * (H - P.t - P.b);
+    const linePath = values.map((v, i) => `${i === 0 ? 'M' : 'L'}${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join(' ');
+    const areaPath = `${linePath} L${xs(xMax).toFixed(1)},${ys(0)} L${xs(0).toFixed(1)},${ys(0)} Z`;
+    // Gridlines + Y axis labels
+    const yTicks = 4;
+    let grid = '';
+    for (let i = 0; i <= yTicks; i++) {
+      const v = (yMax / yTicks) * i;
+      const y = ys(v);
+      grid += `<line class="g" x1="${P.l}" x2="${W - P.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" />`;
+      grid += `<text x="${P.l - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end">${fmt(Math.round(v))}</text>`;
+    }
+    // X axis: year labels
+    let xAxis = '';
+    labels.forEach((row, i) => {
+      if (row.m.endsWith('-01')) {
+        xAxis += `<text x="${xs(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${row.m.slice(0,4)}</text>`;
+      }
+    });
+    svg.innerHTML = `
+      <g class="grid"><style>.g{stroke:#e6e6e0;stroke-dasharray:2 3}</style>${grid}</g>
+      <path class="area" d="${areaPath}" />
+      <path class="line" d="${linePath}" />
+      <g class="axis">${xAxis}</g>
+    `;
   }
 
   // ── community-district table ─────────────────────────────────────────────

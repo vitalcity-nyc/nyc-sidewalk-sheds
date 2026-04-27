@@ -36,13 +36,25 @@
 <p>The start of the current run is treated as the day the shed went up. "Days up" is the number of days between that date and today.</p>
 <div class="caveat"><strong>Caveat.</strong> If a shed truly came down for, say, 45 days during construction and went back up, our run-bridging counts that as continuous. The opposite mistake — over-splitting because of paperwork gaps — is also possible. The 60-day bridge is a reasonable middle setting; tightening it understates duration, loosening overstates it.</div>
 
-<h2>What makes a "zombie shed"</h2>
-<p>A shed is flagged as a zombie when both of these are true:</p>
+<h2>Façade compliance (Local Law 11 / FISP)</h2>
+<p>For each shed-bearing building, we look up its most recent filing in DOB NOW: Façade Compliance Filings (<code>xubg-57si</code>) and report the <code>current_status</code>. NYC's FISP requires owners of buildings six stories or taller to inspect façades every five years and file one of:</p>
 <ul>
-  <li>It has been up for at least 365 days, and</li>
-  <li>No DOB job filing for non-shed work (the <code>shed='0'</code> flag in DOB NOW Job Filings) has had a status update on its building in the last 365 days.</li>
+  <li><strong>Unsafe.</strong> Façade poses a hazard. The shed is a documented requirement.</li>
+  <li><strong>SWARMP</strong> (Safe With A Repair And Maintenance Program). Façade has issues that must be addressed by the next cycle.</li>
+  <li><strong>Safe.</strong> Façade certified safe. A shed at a SAFE-rated building is a flag.</li>
+  <li><strong>No Report Filed.</strong> The owner missed the filing deadline.</li>
+  <li><strong>No filing on record.</strong> Building under six stories, or the owner never participated.</li>
 </ul>
-<p>The intent is to surface sheds that are still up despite no construction work proceeding. This isn't a perfect proxy — work can be filed under a related building, or stalled work can have recent paperwork — but it does flag the buildings most worth a closer look.</p>
+<p>Roughly 17% of active sheds are at buildings with an Unsafe filing — those sheds are justified. Roughly 6% are at buildings rated Safe. About 58% are at buildings with no FISP record at all, which usually means a building under six stories.</p>
+
+<h2>What makes a "zombie shed"</h2>
+<p>A shed is flagged as a zombie when all three of these are true:</p>
+<ul>
+  <li>It has been up for at least 365 days,</li>
+  <li>No DOB job filing for non-shed construction work has had a status update at the building in the last 365 days, and</li>
+  <li>The building's most recent FISP filing is <em>not</em> Unsafe (an Unsafe filing means the shed is legally required).</li>
+</ul>
+<p>The intent is to surface sheds that are still up despite no documented hazard and no construction proceeding. This isn't perfect — work can be filed under a related building, or a façade may genuinely be deteriorating without an Unsafe filing — but it isolates the cases most worth a closer look.</p>
 
 <h2>Owner attribution</h2>
 <p>Owner names in popups come from PLUTO's <code>ownername</code> field, joined to the shed permit on Borough-Block-Lot (BBL). PLUTO records the owner of the tax lot, which is typically the building owner — not the scaffolding contractor that filed the shed permit. For roughly 1% of sheds the BBL doesn't match a current PLUTO record, and the popup falls back to the permit's stated owner.</p>
@@ -53,6 +65,7 @@
   <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-NOW-Build-Approved-Permits/rbx6-tga4">DOB NOW: Build approved permits</a> (<code>rbx6-tga4</code>) — current shed permits</li>
   <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-Permit-Issuance/ipu4-2q9a">DOB Permit Issuance — legacy</a> (<code>ipu4-2q9a</code>) — pre-DOB-NOW shed history</li>
   <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-NOW-Build-Job-Application-Filings/w9ak-ipjd">DOB NOW: Build job application filings</a> (<code>w9ak-ipjd</code>) — for zombie detection</li>
+  <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-NOW-Safety-Facades-Compliance-Filings/xubg-57si">DOB NOW: Safety – Façade compliance filings</a> (<code>xubg-57si</code>) — Local Law 11 status</li>
   <li><a href="https://data.cityofnewyork.us/City-Government/Primary-Land-Use-Tax-Lot-Output-PLUTO-/64uk-42ks">PLUTO</a> (<code>64uk-42ks</code>) — building owner, year built, building class</li>
 </ul>
 <p>All data is fetched from NYC Open Data's Socrata API. The build pipeline is <code>scripts/build_data.py</code> and runs nightly via GitHub Actions.</p>

@@ -33,6 +33,14 @@
       <span class="num" id="s-zombie">—</span>
       <span class="lbl">zombie sheds</span>
     </div>
+    <div class="stat">
+      <span class="num" id="s-unsafe">—</span>
+      <span class="lbl">unsafe façade filings</span>
+    </div>
+    <div class="stat">
+      <span class="num" id="s-distress">—</span>
+      <span class="lbl">distressed buildings</span>
+    </div>
     <div class="stat asof">
       <span class="num" id="s-asof">—</span>
       <span class="lbl">data as of</span>
@@ -41,8 +49,10 @@
 
   <nav class="tabs" role="tablist">
     <button class="tab active" data-view="map" role="tab">Map</button>
+    <button class="tab" data-view="findings" role="tab">Findings</button>
     <button class="tab" data-view="zombies" role="tab">Top sheds</button>
     <button class="tab" data-view="neighborhoods" role="tab">By neighborhood</button>
+    <button class="tab" data-view="trend" role="tab">Trend over time</button>
     <a class="meth" href="methodology.html" target="_blank" rel="noopener">Methodology</a>
   </nav>
 
@@ -71,12 +81,23 @@
     <section class="view view-map active" id="view-map">
       <div id="map"></div>
       <aside class="legend" id="legend">
-        <strong>Click to filter</strong>
+        <strong>Days up — click to filter</strong>
         <button class="leg-btn" data-bucket="0-90"><i style="background:#57aa4a"></i>Under 90 days</button>
         <button class="leg-btn" data-bucket="90-365"><i style="background:#dde44c"></i>90 – 365 days</button>
         <button class="leg-btn" data-bucket="365-1095"><i style="background:#ff7c53"></i>1 – 3 years</button>
         <button class="leg-btn" data-bucket="1095-1825"><i style="background:#e7466d"></i>3 – 5 years</button>
         <button class="leg-btn" data-bucket="1825-99999"><i style="background:#d2232a"></i>Over 5 years</button>
+        <hr>
+        <strong>Façade status (Local Law 11)</strong>
+        <button class="leg-btn" data-fisp="UNSAFE"><i style="background:#d2232a;border-radius:0"></i>Unsafe filing</button>
+        <button class="leg-btn" data-fisp="SWARMP"><i style="background:#ff7c53;border-radius:0"></i>SWARMP (needs repair)</button>
+        <button class="leg-btn" data-fisp="SAFE"><i style="background:#57aa4a;border-radius:0"></i>Safe</button>
+        <button class="leg-btn" data-fisp="NONE"><i style="background:#9b9fbc;border-radius:0"></i>No filing</button>
+        <hr>
+        <hr>
+        <strong>Building condition</strong>
+        <button class="leg-btn" data-flag="distress"><i style="background:#e7466d;border-radius:0"></i>Distressed buildings (HPD/AEP)</button>
+        <button class="leg-btn" data-flag="aep"><i style="background:#7d1027;border-radius:0"></i>HPD AEP enrolled</button>
         <hr>
         <button class="leg-btn" data-toggle="311"><i style="background:#217ebe"></i>311 complaints (past 12 months)</button>
         <button class="leg-btn" data-toggle="chronic"><i style="background:#0a4f80;width:14px;height:14px"></i>Chronic sites only (2+)</button>
@@ -94,10 +115,41 @@
             <th data-key="owner" data-type="str">Owner (per PLUTO)</th>
             <th data-key="yrbuilt" data-type="num">Year built</th>
             <th data-key="zombie" data-type="num">Zombie?</th>
+            <th data-key="fisp" data-type="str">Façade status</th>
+            <th data-key="distress" data-type="num">Distress score</th>
             <th data-key="complaints" data-type="num">311 complaints (past year)</th>
           </tr></thead>
           <tbody></tbody>
         </table>
+      </div>
+    </section>
+
+    <section class="view view-findings" id="view-findings">
+      <p class="caption">What the data shows. Each finding links to the map filtered to those sheds. Numbers update nightly.</p>
+      <div id="findings-grid"></div>
+    </section>
+
+    <section class="view view-trend" id="view-trend">
+      <p class="caption">Active sheds and median days-up by month, since the DOB NOW permit system launched in 2018. (Pre-2018 is sparse because legacy permits don't reliably carry building IDs.)</p>
+      <div class="trend-grid">
+        <div class="trend-stat">
+          <div class="trend-num" id="t-now">—</div>
+          <div class="trend-lbl">active sheds today</div>
+          <div class="trend-delta" id="t-delta-count"></div>
+        </div>
+        <div class="trend-stat">
+          <div class="trend-num" id="t-med">—</div>
+          <div class="trend-lbl">median days up</div>
+          <div class="trend-delta" id="t-delta-med"></div>
+        </div>
+      </div>
+      <div class="chart-block">
+        <h3>Active sheds, by month</h3>
+        <svg id="chart-count" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="chart-block">
+        <h3>Median days a shed has been up, by month</h3>
+        <svg id="chart-med" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
       </div>
     </section>
 

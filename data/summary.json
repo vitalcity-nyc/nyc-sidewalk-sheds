@@ -5,8 +5,16 @@
   "over_5y": 539,
   "over_3y": 1320,
   "over_1y": 3588,
-  "zombies": 595,
+  "zombies": 466,
   "median_days": 354,
   "complaints_12mo": 134,
-  "chronic_sites": 8
+  "chronic_sites": 8,
+  "fisp_unsafe": 1284,
+  "fisp_swarmp": 937,
+  "fisp_safe": 419,
+  "fisp_no_filing": 4279,
+  "with_open_hpd": 3464,
+  "with_open_class_c": 2744,
+  "in_aep": 183,
+  "high_distress": 2385
 }
