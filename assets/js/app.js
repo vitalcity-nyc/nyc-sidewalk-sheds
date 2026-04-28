@@ -49,6 +49,7 @@
     attachSort('zombie-table', null, renderZombieTable);
     attachSort('cd-table', null, renderCDTable);
     populateCDDropdown();
+    populateNTADatalist();
     renderFindings();
     renderTrend();
     paintSummary(summary);
@@ -91,7 +92,7 @@
   function isFiltered() {
     const f = getFilters();
     return state.buckets.size || state.fisp.size || state.flags.size
-      || f.boro || f.zombie || f.q || f.cd;
+      || f.boro || f.zombie || f.q || f.cd || f.nta;
   }
 
   function passesFlags(s) {
@@ -242,6 +243,7 @@
     return {
       boro: document.getElementById('f-boro').value,
       cd: document.getElementById('f-cd').value,
+      nta: document.getElementById('f-nta').value.trim(),
       dur: document.getElementById('f-dur').value,
       zombie: document.getElementById('f-zombie').checked,
       q: document.getElementById('f-q').value.trim().toLowerCase(),
@@ -257,6 +259,7 @@
     state.filtered = state.sheds.filter(s => {
       if (f.boro && s.boro !== f.boro) return false;
       if (f.cd && s.cd !== f.cd) return false;
+      if (f.nta && (s.nta || '').toLowerCase() !== f.nta.toLowerCase()) return false;
       if (state.buckets.size && !state.buckets.has(bucketOf(s.days))) return false;
       if (state.fisp.size && !state.fisp.has(FISP_KEY(s))) return false;
       if (!passesFlags(s)) return false;
@@ -280,6 +283,14 @@
     if (state.view === 'zombies') renderZombieTable();
     updateNowShowing();
     syncURL(f);
+    // Auto-zoom for neighborhood/CD selections
+    if (state._zoomToFiltered && map && state.filtered.length) {
+      try {
+        const b = L.latLngBounds(state.filtered.map(p => [p.lat, p.lon]));
+        map.fitBounds(b, { padding: [40, 40], maxZoom: 15 });
+      } catch (e) {}
+      state._zoomToFiltered = false;
+    }
   }
 
   function clearActivePreset() {
@@ -310,7 +321,39 @@
       applyFilters();
     });
   });
-  document.getElementById('f-cd').addEventListener('change', () => { clearActivePreset(); applyFilters(); });
+  document.getElementById('f-cd').addEventListener('change', () => {
+    clearActivePreset();
+    state._zoomToFiltered = true;
+    applyFilters();
+  });
+
+  function populateNTADatalist() {
+    const counts = {};
+    for (const s of state.sheds) {
+      if (!s.nta) continue;
+      counts[s.nta] = (counts[s.nta] || 0) + 1;
+    }
+    const dl = document.getElementById('nta-list');
+    dl.innerHTML = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([n, c]) => `<option value="${n}">${n} (${c} sheds)</option>`)
+      .join('');
+  }
+  // Apply NTA on change/Enter; debounce 'input' so dropdown selections fire fast.
+  let ntaTimer;
+  document.getElementById('f-nta').addEventListener('input', (e) => {
+    clearTimeout(ntaTimer);
+    const val = e.target.value.trim();
+    // Only apply when value matches a known NTA exactly (datalist pick or full type).
+    const known = [...document.getElementById('nta-list').options].some(o => o.value === val);
+    if (!val || known) {
+      ntaTimer = setTimeout(() => {
+        clearActivePreset();
+        state._zoomToFiltered = true;
+        applyFilters();
+      }, 50);
+    }
+  });
   document.getElementById('f-reset').addEventListener('click', () => {
     document.getElementById('f-boro').value = '';
     document.getElementById('f-zombie').checked = false;
@@ -405,6 +448,8 @@
     state.fisp.clear();
     state.flags.clear();
     document.getElementById('f-boro').value = '';
+    document.getElementById('f-cd').value = '';
+    document.getElementById('f-nta').value = '';
     document.getElementById('f-zombie').checked = false;
     document.getElementById('f-q').value = '';
     document.getElementById('f-311').checked = false;
@@ -440,7 +485,9 @@
     if (state.flags.has('distress')) parts.push('at distressed buildings (HPD/AEP)');
     if (state.flags.has('aep')) parts.push('on the HPD AEP list');
     if (f.zombie) parts.push('flagged zombie');
-    if (f.cd) {
+    if (f.nta) {
+      parts.push(`in ${f.nta}`);
+    } else if (f.cd) {
       const boro = ({1:'Manhattan',2:'Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'})[f.cd[0]] || '';
       parts.push(`in ${boro} CD ${parseInt(f.cd.slice(1), 10)}`);
     } else if (f.boro) {
