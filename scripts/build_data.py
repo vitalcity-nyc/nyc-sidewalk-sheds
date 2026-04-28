@@ -117,10 +117,10 @@ def main():
     )
     now_active = fetch_all(
         "rbx6-tga4", where_now,
-        select=("bin,bbl,house_no,street_name,borough,zip_code,latitude,longitude,"
+        select=("bin,bbl,block,lot,house_no,street_name,borough,zip_code,latitude,longitude,"
                 "community_board,council_district,nta,issued_date,expired_date,"
-                "filing_reason,owner_name,owner_business_name,job_description,"
-                "work_on_floor,permit_status,work_permit,job_filing_number"),
+                "filing_reason,owner_name,owner_business_name,applicant_business_name,"
+                "job_description,work_on_floor,permit_status,work_permit,job_filing_number"),
     )
     print(f"  active permits: {len(now_active):,}", file=sys.stderr)
 
@@ -342,6 +342,10 @@ def main():
             "units": plut.get("unitsres") or "",
             "bclass": plut.get("bldgclass") or "",
             "reason": r.get("filing_reason") or "",
+            "job": r.get("job_filing_number") or r.get("work_permit") or "",
+            "appl": (r.get("applicant_business_name") or "").strip(),
+            "block": str(r.get("block") or ""),
+            "lot": str(r.get("lot") or ""),
             "zombie": is_zombie,
             "fisp": fisp_status,
             "fisp_cycle": fisp_cycle,

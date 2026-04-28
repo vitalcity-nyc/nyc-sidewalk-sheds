@@ -9,6 +9,7 @@
     { max: 99999, fill: '#d2232a' },
   ];
   const colorFor = (d) => COLORS.find(c => d <= c.max).fill;
+  const radiusForDays = (d) => Math.max(2, Math.sqrt(Math.max(d, 1)) / 7);
   const fmt = (n) => n.toLocaleString('en-US');
   const titleCase = (s) => s.replace(/\w\S*/g, t => t[0].toUpperCase() + t.slice(1).toLowerCase());
 
@@ -135,11 +136,11 @@
     const g = L.layerGroup();
     for (const s of state.filtered) {
       const m = L.circleMarker([s.lat, s.lon], {
-        radius: s.days >= 1825 ? 4 : (s.days >= 365 ? 3.2 : 2.6),
+        radius: radiusForDays(s.days),
         weight: 0.4,
-        color: '#000',
+        color: 'rgba(0,0,0,0.4)',
         fillColor: colorFor(s.days),
-        fillOpacity: 0.85,
+        fillOpacity: 0.7,
       });
       m.bindPopup(() => popupHTML(s), { maxWidth: 280 });
       g.addLayer(m);
@@ -189,21 +190,50 @@
     state.complaintLayer = g;
   }
 
+  // Building-class translations (DOB single-letter codes -> plain English)
+  const BCLASS = {
+    A: 'One-family home', B: 'Two-family home', C: 'Walk-up apartments',
+    D: 'Elevator apartments', E: 'Warehouse', F: 'Factory/industrial',
+    G: 'Garage', H: 'Hotel', I: 'Hospital/health', J: 'Theater',
+    K: 'Store with offices', L: 'Loft', M: 'Religious', N: 'Asylum/home',
+    O: 'Office', P: 'Public assembly', Q: 'Outdoor recreation',
+    R: 'Condo', S: 'Mixed residential/commercial', T: 'Transportation',
+    U: 'Utility', V: 'Vacant land', W: 'School', Y: 'Government',
+    Z: 'Misc.',
+  };
   function popupHTML(s) {
     const owner = s.owner && s.owner !== '—' ? titleCase(s.owner) : 'Owner not on file';
     const yrs = (s.days / 365).toFixed(1);
+    const bclassFriendly = s.bclass ? (BCLASS[s.bclass[0]] || 'Building') + ` (${s.bclass})` : '';
+    const reason = s.reason ? s.reason.replace(/Permit/i, '').trim() : '';
     return `
-      <div class="popup-addr">${s.addr}</div>
-      <div class="popup-days">${fmt(s.days)} days of permit coverage · ${yrs} years</div>
-      <div class="popup-row"><span>Owner</span><span>${owner}</span></div>
-      <div class="popup-row"><span>Run started</span><span>${s.first || '—'}</span></div>
-      <div class="popup-row"><span>Latest permit ends</span><span>${s.exp || '—'}</span></div>
-      <div class="popup-row"><span>Borough</span><span>${s.boro}</span></div>
-      <div class="popup-row"><span>Façade (LL11)</span><span>${FISP_LABEL[FISP_KEY(s)] || FISP_KEY(s)}${s.fisp_cycle ? ` · cycle ${s.fisp_cycle}` : ''}</span></div>
-      ${(s.hpd_c || s.hpd_b || s.aep) ? `<div class="popup-row"><span>Open HPD viol.</span><span>${s.hpd_c || 0} class C, ${s.hpd_b || 0} class B${s.aep ? ' · in AEP' : ''}</span></div>` : ''}
+      <div class="popup-addr">${s.addr}, ${s.boro}</div>
+      <div class="popup-days">${fmt(s.days)} days under shed permit · about ${yrs} years</div>
+
+      <div class="popup-section">Property</div>
+      <div class="popup-row"><span>Property owner</span><span>${owner}</span></div>
       ${s.yrbuilt ? `<div class="popup-row"><span>Year built</span><span>${s.yrbuilt}</span></div>` : ''}
-      ${s.bclass ? `<div class="popup-row"><span>Building class</span><span>${s.bclass}</span></div>` : ''}
-      ${s.zombie ? '<div class="popup-zombie">Zombie shed</div>' : ''}
+      ${bclassFriendly ? `<div class="popup-row"><span>Building type</span><span>${bclassFriendly}</span></div>` : ''}
+      ${s.units ? `<div class="popup-row"><span>Residential units</span><span>${s.units}</span></div>` : ''}
+
+      <div class="popup-section">Permit</div>
+      <div class="popup-row"><span>Permit run started</span><span>${s.first || '—'}</span></div>
+      <div class="popup-row"><span>Current permit expires</span><span>${s.exp || '—'}</span></div>
+      ${reason ? `<div class="popup-row"><span>Latest filing</span><span>${reason}</span></div>` : ''}
+      ${s.appl ? `<div class="popup-row"><span>Filed by (contractor)</span><span>${titleCase(s.appl)}</span></div>` : ''}
+
+      <div class="popup-section">Building condition</div>
+      <div class="popup-row"><span>Façade (Local Law 11)</span><span>${FISP_LABEL[FISP_KEY(s)] || FISP_KEY(s)}${s.fisp_cycle ? ` · cycle ${s.fisp_cycle}` : ''}</span></div>
+      ${(s.hpd_c || s.hpd_b) ? `<div class="popup-row"><span>Open housing violations</span><span>${s.hpd_c || 0} immediately hazardous, ${s.hpd_b || 0} significant</span></div>` : ''}
+      ${s.aep ? `<div class="popup-row"><span>HPD distress program</span><span>Enrolled in AEP</span></div>` : ''}
+      ${s.complaints ? `<div class="popup-row"><span>311 complaints (past 12 months)</span><span><strong>${s.complaints}</strong></span></div>` : ''}
+
+      <div class="popup-section popup-refs">Reference</div>
+      ${s.job ? `<div class="popup-row"><span>DOB job number</span><span>${s.job}</span></div>` : ''}
+      <div class="popup-row"><span>DOB Building ID (BIN)</span><span>${s.bin}</span></div>
+      ${s.block && s.lot ? `<div class="popup-row"><span>Block / Lot</span><span>${s.block} / ${s.lot}</span></div>` : ''}
+
+      ${s.zombie ? '<div class="popup-zombie">Zombie shed — long up, no recent work, no documented hazard</div>' : ''}
     `;
   }
 

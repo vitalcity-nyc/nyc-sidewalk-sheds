@@ -299,6 +299,13 @@ main { flex: 1; min-height: 520px; position: relative; display: flex; }
   flex-shrink: 0;
 }
 .legend.has-active .leg-btn:not(.active) { opacity: 0.35; }
+.leg-size-note {
+  font-size: 9.5px;
+  color: var(--ink-soft);
+  font-style: italic;
+  padding: 0 4px 4px;
+  margin-top: -2px;
+}
 
 .leaflet-popup-content-wrapper { border-radius: 4px; }
 .leaflet-popup-content { font-family: var(--font); font-size: 12px; line-height: 1.5; margin: 10px 12px; min-width: 220px; }
@@ -307,6 +314,19 @@ main { flex: 1; min-height: 520px; position: relative; display: flex; }
 .popup-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px; }
 .popup-row span:first-child { color: var(--ink-soft); text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; }
 .popup-row span:last-child { font-weight: 500; text-align: right; }
+.popup-section {
+  margin-top: 9px;
+  margin-bottom: 4px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--vc-cerulean);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 2px;
+}
+.popup-section.popup-refs { color: var(--ink-soft); }
+.leaflet-popup-content { max-height: 360px; overflow-y: auto; }
 .popup-zombie {
   display: inline-block;
   margin-top: 6px;
