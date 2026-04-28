@@ -23,6 +23,25 @@
   const colorFor = (d) => COLORS.find(c => d <= c.max).fill;
   const radiusForDays = (d) => Math.max(2, Math.sqrt(Math.max(d, 1)) / 7);
   const fmt = (n) => n.toLocaleString('en-US');
+
+  // Acronym dictionary for tooltip-style first-references.
+  const ACRONYMS = {
+    BIN: 'Building Identification Number — every building in NYC has one',
+    BBL: 'Borough, Block and Lot — the unique tax-lot ID',
+    DOB: 'New York City Department of Buildings',
+    HPD: 'New York City Department of Housing Preservation and Development',
+    AEP: 'Alternative Enforcement Program — HPD\'s distressed-building list',
+    FISP: 'Facade Inspection Safety Program (Local Law 11) — required facade inspections every 5 years for buildings 6+ stories',
+    SWARMP: 'Safe With A Repair And Maintenance Program — the facade is OK now but needs work before the next cycle',
+    PLUTO: 'Primary Land Use Tax Lot Output — the city\'s master tax-lot dataset, including ownership',
+    NYCHA: 'New York City Housing Authority',
+    LL11: 'Local Law 11 of 1998 — requires regular facade inspections',
+    CD: 'Community District (one of 59 in NYC)',
+    NTA: 'Neighborhood Tabulation Area',
+    OATH: 'Office of Administrative Trials and Hearings — adjudicates building-code violations',
+    ECB: 'Environmental Control Board — DOB\'s violations bureau',
+  };
+  const ab = (k, label) => `<abbr title="${ACRONYMS[k] || ''}">${label || k}</abbr>`;
   const titleCase = (s) => s.replace(/\w\S*/g, t => t[0].toUpperCase() + t.slice(1).toLowerCase());
 
   const state = { sheds: [], cd: [], complaints: [], chronic: [], filtered: [], view: 'map', layer: null, complaintLayer: null, buckets: new Set(), fisp: new Set(), flags: new Set() };
@@ -242,13 +261,13 @@
 
       <div class="popup-section">Building condition</div>
       <div class="popup-row"><span>Facade (Local Law 11)</span><span>${FISP_LABEL[FISP_KEY(s)] || FISP_KEY(s)}${s.fisp_cycle ? ` · cycle ${s.fisp_cycle}` : ''}</span></div>
-      ${(s.hpd_c || s.hpd_b) ? `<div class="popup-row"><span>Open housing violations</span><span>${s.hpd_c || 0} immediately hazardous, ${s.hpd_b || 0} significant</span></div>` : ''}
-      ${s.aep ? `<div class="popup-row"><span>HPD distress program</span><span>Enrolled in AEP</span></div>` : ''}
+      ${(s.hpd_c || s.hpd_b) ? `<div class="popup-row"><span>Open ${ab('HPD')} violations</span><span>${s.hpd_c || 0} immediately hazardous, ${s.hpd_b || 0} significant</span></div>` : ''}
+      ${s.aep ? `<div class="popup-row"><span>${ab('HPD')} distress program</span><span>Enrolled in ${ab('AEP')}</span></div>` : ''}
       ${s.complaints ? `<div class="popup-row"><span>311 complaints (past 12 months)</span><span><strong>${s.complaints}</strong></span></div>` : ''}
 
       <div class="popup-section popup-refs">Reference</div>
-      ${s.job ? `<div class="popup-row"><span>DOB job number</span><span>${s.job}</span></div>` : ''}
-      <div class="popup-row"><span>DOB Building ID (BIN)</span><span>${s.bin}</span></div>
+      ${s.job ? `<div class="popup-row"><span>${ab('DOB')} job number</span><span>${s.job}</span></div>` : ''}
+      <div class="popup-row"><span>${ab('DOB')} Building ID (${ab('BIN')})</span><span>${s.bin}</span></div>
       ${s.block && s.lot ? `<div class="popup-row"><span>Block / Lot</span><span>${s.block} / ${s.lot}</span></div>` : ''}
 
       ${s.zombie ? '<div class="popup-zombie">Zombie shed — long up, no recent work, no documented hazard</div>' : ''}
@@ -744,8 +763,8 @@
     findings.push({
       kind: 'severe',
       num: fmt(s.zombies || 0),
-      head: 'Zombie sheds: long-up, no work, no documented hazard',
-      body: `Sheds up over a year, with no recent non-shed construction filed at the building, and no Unsafe FISP filing. Strongest signal of a shed that's just sitting there.`,
+      head: 'Zombie sheds: long up, no work, no documented hazard',
+      body: `Sheds up over a year, with no recent non-shed construction filed at the building, and no Unsafe ${ab('FISP')} filing. Strongest signal of a shed that's just sitting there.`,
       cta: 'Filter map →',
       action: () => { document.getElementById('f-zombie').checked = true; switchView('map'); syncLegend(); applyFilters(); },
     });
@@ -755,7 +774,7 @@
       kind: 'severe',
       num: fmt(s.with_open_class_c || 0),
       head: 'Sheds at buildings with hazardous housing violations',
-      body: `About <strong>${Math.round(100 * (s.with_open_class_c || 0) / (s.total_active || 1))} percent</strong> of shed-bearing buildings have at least one open Class C — immediately hazardous — housing violation on file with HPD. The shed is often the most visible symptom of a deeper problem.`,
+      body: `About <strong>${Math.round(100 * (s.with_open_class_c || 0) / (s.total_active || 1))} percent</strong> of shed-bearing buildings have at least one open Class C — immediately hazardous — housing violation on file with ${ab('HPD')}. The shed is often the most visible symptom of a deeper problem.`,
       cta: 'Filter map to distressed →',
       action: () => { state.flags.add('distress'); switchView('map'); syncLegend(); applyFilters(); },
     });
@@ -764,8 +783,8 @@
     if (s.in_aep) findings.push({
       kind: 'context',
       num: fmt(s.in_aep),
-      head: 'Sheds at HPD AEP-enrolled buildings',
-      body: `These buildings are formally enrolled in HPD's Alternative Enforcement Program — the city's official list of severely distressed properties. Each shed there is a public-housing-quality emergency in slow motion.`,
+      head: `Sheds at ${ab('HPD')} ${ab('AEP')}-enrolled buildings`,
+      body: `These buildings are formally enrolled in ${ab('HPD')}'s Alternative Enforcement Program — the city's official list of severely distressed properties. Each shed there is a public-housing-quality emergency in slow motion.`,
       cta: 'Filter map →',
       action: () => { state.flags.add('aep'); switchView('map'); syncLegend(); applyFilters(); },
     });
@@ -775,7 +794,7 @@
       kind: '',
       num: `${(longest.days/365).toFixed(1)} yr`,
       head: 'Longest-running shed-permit coverage',
-      body: `<strong>${longest.addr}, ${longest.boro}</strong> has had an unbroken run of shed permits (gaps ≤30 days) since <strong>${longest.first}</strong>. Owner per PLUTO: ${titleCase(longest.owner || 'unknown')}. Facade status: ${FISP_LABEL[FISP_KEY(longest)] || 'no filing'}.`,
+      body: `<strong>${longest.addr}, ${longest.boro}</strong> has had an unbroken run of shed permits (gaps ≤30 days) since <strong>${longest.first}</strong>. Owner per ${ab('PLUTO')}: ${titleCase(longest.owner || 'unknown')}. Facade status: ${FISP_LABEL[FISP_KEY(longest)] || 'no filing'}.`,
       cta: 'Show on map →',
       action: () => {
         switchView('map');
@@ -1090,7 +1109,7 @@
       <div class="shed-card ${cls}">
         <div>
           <div class="shed-card-head">${s.addr}, ${s.boro}</div>
-          <div class="shed-card-meta">${distFt < 528 ? distFt + ' ft away' : (distFt/5280).toFixed(2) + ' mi away'} · BIN ${s.bin}</div>
+          <div class="shed-card-meta">${distFt < 528 ? distFt + ' ft away' : (distFt/5280).toFixed(2) + ' mi away'} · ${ab('BIN')} ${s.bin}</div>
           <div class="shed-card-body">
             <div><span class="label">Time under shed</span> <strong>${(s.days/365).toFixed(1)} years</strong> (since ${s.first})</div>
             <div><span class="label">Property owner</span> ${s.owner === '—' ? 'not on file' : titleCase(s.owner)}</div>

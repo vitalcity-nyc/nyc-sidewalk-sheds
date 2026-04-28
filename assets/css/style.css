@@ -24,6 +24,15 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+abbr[title] {
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: help;
+  text-decoration-skip-ink: none;
+}
+.hero abbr[title] { text-decoration-color: rgba(255,255,255,0.5); }
+
 body {
   font-family: var(--font);
   color: var(--ink);
