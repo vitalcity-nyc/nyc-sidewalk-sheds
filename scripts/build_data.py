@@ -435,6 +435,50 @@ def main():
     cd_rows = [{"cd": k, **v} for k, v in cd_agg.items()]
     cd_rows.sort(key=lambda x: -x["shed_days"])
 
+    # 8b. Council-district scorecards.
+    cdist_agg = defaultdict(lambda: {
+        "sheds": 0, "shed_days": 0, "zombies": 0,
+        "over_1y": 0, "over_5y": 0,
+        "unsafe": 0, "distressed": 0,
+        "complaints": 0, "days_list": [],
+    })
+    for s in sheds:
+        cd = s.get("cdist") or ""
+        if not cd:
+            continue
+        c = cdist_agg[cd]
+        c["sheds"] += 1
+        c["shed_days"] += s["days"]
+        c["days_list"].append(s["days"])
+        if s["days"] >= 365: c["over_1y"] += 1
+        if s["days"] >= 1825: c["over_5y"] += 1
+        if s["zombie"]: c["zombies"] += 1
+        if s["fisp"] == "UNSAFE": c["unsafe"] += 1
+        if (s.get("distress") or 0) >= 10: c["distressed"] += 1
+        if s.get("complaints", 0): c["complaints"] += s["complaints"]
+    cdist_rows = []
+    for cd, c in cdist_agg.items():
+        ds = sorted(c["days_list"])
+        median = ds[len(ds) // 2] if ds else 0
+        # Worst shed in the district (longest-standing).
+        worst = max((s for s in sheds if str(s.get("cdist") or "") == cd), key=lambda s: s["days"], default=None)
+        cdist_rows.append({
+            "cdist": cd,
+            "sheds": c["sheds"],
+            "shed_days": c["shed_days"],
+            "median_days": median,
+            "over_1y": c["over_1y"],
+            "over_5y": c["over_5y"],
+            "zombies": c["zombies"],
+            "unsafe": c["unsafe"],
+            "distressed": c["distressed"],
+            "complaints": c["complaints"],
+            "worst_addr": (worst["addr"] + ", " + worst["boro"]) if worst else "",
+            "worst_days": worst["days"] if worst else 0,
+            "worst_bin": worst["bin"] if worst else "",
+        })
+    cdist_rows.sort(key=lambda x: -x["shed_days"])
+
     # 9. Summary stats for the embed header.
     summary = {
         "as_of": today_str,
@@ -460,6 +504,7 @@ def main():
 
     (DATA / "sheds.json").write_text(json.dumps(sheds, separators=(",", ":")))
     (DATA / "cd.json").write_text(json.dumps(cd_rows, separators=(",", ":")))
+    (DATA / "cdistricts.json").write_text(json.dumps(cdist_rows, separators=(",", ":")))
     (DATA / "complaints311.json").write_text(json.dumps(complaints, separators=(",", ":")))
     (DATA / "chronic311.json").write_text(json.dumps(chronic, separators=(",", ":")))
 

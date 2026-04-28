@@ -52,6 +52,7 @@
     <button class="tab" data-view="findings" role="tab">Findings</button>
     <button class="tab" data-view="zombies" role="tab">Top sheds</button>
     <button class="tab" data-view="neighborhoods" role="tab">By neighborhood</button>
+    <button class="tab" data-view="council" role="tab">Council districts</button>
     <button class="tab" data-view="trend" role="tab">Trend over time</button>
     <button class="iconbtn" id="btn-fullscreen" title="Toggle full screen" aria-label="Toggle full screen">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9"/></svg>
@@ -128,6 +129,11 @@
   <main>
     <section class="view view-map active" id="view-map">
       <div id="map"></div>
+      <div class="map-search">
+        <label for="map-nta">🔎 Find a neighborhood</label>
+        <input list="nta-list" id="map-nta" placeholder="Type to search 206 NYC neighborhoods…" autocomplete="off">
+      </div>
+
       <aside class="legend" id="legend">
         <strong>Days up — click to filter</strong>
         <button class="leg-btn" data-bucket="0-90"><i style="background:#57aa4a;width:5px;height:5px"></i>Under 90 days</button>
@@ -176,6 +182,27 @@
     <section class="view view-findings" id="view-findings">
       <p class="caption">What the data shows. Each finding links to the map filtered to those sheds. Numbers update nightly.</p>
       <div id="findings-grid"></div>
+    </section>
+
+    <section class="view view-council" id="view-council">
+      <p class="caption">All 51 NYC City Council districts ranked by total shed-days. Click any row to zoom the map to that district. Click any column header to sort.</p>
+      <div class="table-wrap">
+        <table id="council-table" class="sortable">
+          <thead><tr>
+            <th data-key="cdist" data-type="num">District</th>
+            <th data-key="sheds" data-type="num">Active sheds</th>
+            <th data-key="shed_days" data-type="num" class="sorted-desc">Total shed-days</th>
+            <th data-key="median_days" data-type="num">Median days</th>
+            <th data-key="over_5y" data-type="num">Sheds &gt;5 yr</th>
+            <th data-key="zombies" data-type="num">Zombies</th>
+            <th data-key="unsafe" data-type="num">Unsafe filings</th>
+            <th data-key="distressed" data-type="num">Distressed</th>
+            <th data-key="complaints" data-type="num">311 complaints (yr)</th>
+            <th data-key="worst_days" data-type="num">Worst shed</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="view view-trend" id="view-trend">

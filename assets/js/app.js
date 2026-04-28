@@ -31,7 +31,9 @@
     fetch('data/complaints311.json').then(r => r.json()).catch(() => []),
     fetch('data/chronic311.json').then(r => r.json()).catch(() => []),
     fetch('data/trend.json').then(r => r.json()).catch(() => []),
-  ]).then(([sheds, summary, cd, complaints, chronic, trend]) => {
+    fetch('data/cdistricts.json').then(r => r.json()).catch(() => []),
+  ]).then(([sheds, summary, cd, complaints, chronic, trend, cdistricts]) => {
+    state.cdistricts = cdistricts;
     state.summary = summary;
     state.trend = trend;
     state.sheds = sheds;
@@ -48,10 +50,12 @@
     });
     attachSort('zombie-table', null, renderZombieTable);
     attachSort('cd-table', null, renderCDTable);
+    attachSort('council-table', null, renderCouncilTable);
     populateCDDropdown();
     populateNTADatalist();
     renderFindings();
     renderTrend();
+    renderCouncilTable();
     paintSummary(summary);
     initMap();
     renderCDTable();
@@ -92,7 +96,7 @@
   function isFiltered() {
     const f = getFilters();
     return state.buckets.size || state.fisp.size || state.flags.size
-      || f.boro || f.zombie || f.q || f.cd || f.nta;
+      || f.boro || f.zombie || f.q || f.cd || f.nta || state._cdist;
   }
 
   function passesFlags(s) {
@@ -259,6 +263,7 @@
     state.filtered = state.sheds.filter(s => {
       if (f.boro && s.boro !== f.boro) return false;
       if (f.cd && s.cd !== f.cd) return false;
+      if (state._cdist && String(s.cdist) !== String(state._cdist)) return false;
       if (f.nta && (s.nta || '').toLowerCase() !== f.nta.toLowerCase()) return false;
       if (state.buckets.size && !state.buckets.has(bucketOf(s.days))) return false;
       if (state.fisp.size && !state.fisp.has(FISP_KEY(s))) return false;
@@ -281,6 +286,8 @@
     }
     if (state.view === 'map') renderMap();
     if (state.view === 'zombies') renderZombieTable();
+    if (state.view === 'neighborhoods') renderCDTable();
+    if (state.view === 'council') renderCouncilTable();
     updateNowShowing();
     syncURL(f);
     // Auto-zoom for neighborhood/CD selections
@@ -341,19 +348,25 @@
   }
   // Apply NTA on change/Enter; debounce 'input' so dropdown selections fire fast.
   let ntaTimer;
-  document.getElementById('f-nta').addEventListener('input', (e) => {
-    clearTimeout(ntaTimer);
-    const val = e.target.value.trim();
-    // Only apply when value matches a known NTA exactly (datalist pick or full type).
-    const known = [...document.getElementById('nta-list').options].some(o => o.value === val);
-    if (!val || known) {
-      ntaTimer = setTimeout(() => {
-        clearActivePreset();
-        state._zoomToFiltered = true;
-        applyFilters();
-      }, 50);
-    }
-  });
+  function ntaInputHandler(srcInput, mirrorInput) {
+    return (e) => {
+      clearTimeout(ntaTimer);
+      const val = srcInput.value.trim();
+      mirrorInput.value = val;
+      const known = [...document.getElementById('nta-list').options].some(o => o.value === val);
+      if (!val || known) {
+        ntaTimer = setTimeout(() => {
+          clearActivePreset();
+          state._zoomToFiltered = true;
+          applyFilters();
+        }, 50);
+      }
+    };
+  }
+  const fNta = document.getElementById('f-nta');
+  const mapNta = document.getElementById('map-nta');
+  fNta.addEventListener('input', ntaInputHandler(fNta, mapNta));
+  mapNta.addEventListener('input', ntaInputHandler(mapNta, fNta));
   document.getElementById('f-reset').addEventListener('click', () => {
     document.getElementById('f-boro').value = '';
     document.getElementById('f-zombie').checked = false;
@@ -447,9 +460,11 @@
     state.buckets.clear();
     state.fisp.clear();
     state.flags.clear();
+    state._cdist = null;
     document.getElementById('f-boro').value = '';
     document.getElementById('f-cd').value = '';
     document.getElementById('f-nta').value = '';
+    const mn = document.getElementById('map-nta'); if (mn) mn.value = '';
     document.getElementById('f-zombie').checked = false;
     document.getElementById('f-q').value = '';
     document.getElementById('f-311').checked = false;
@@ -485,7 +500,9 @@
     if (state.flags.has('distress')) parts.push('at distressed buildings (HPD/AEP)');
     if (state.flags.has('aep')) parts.push('on the HPD AEP list');
     if (f.zombie) parts.push('flagged zombie');
-    if (f.nta) {
+    if (state._cdist) {
+      parts.push(`in Council District ${state._cdist}`);
+    } else if (f.nta) {
       parts.push(`in ${f.nta}`);
     } else if (f.cd) {
       const boro = ({1:'Manhattan',2:'Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'})[f.cd[0]] || '';
@@ -493,7 +510,7 @@
     } else if (f.boro) {
       parts.push(`in ${f.boro}`);
     }
-    if (f.q) parts.push(`matching "${f.q}"`);
+    if (f.q) parts.push(`with addresses matching "${f.q}"`);
     return parts.join(', ');
   }
 
@@ -511,7 +528,7 @@
     if (!desc) {
       el.innerHTML = `Showing all <strong>${fmt(state.sheds.length)}</strong> active sheds. <span class="ns-hint">Click a preset above, or use the legend on the map to ask your own question.</span>`;
     } else {
-      el.innerHTML = `Showing <strong>${fmt(state.filtered.length)}</strong> sheds — ${desc}.`;
+      el.innerHTML = `Showing <strong>${fmt(state.filtered.length)}</strong> sheds that are ${desc}.`;
     }
   }
 
@@ -564,6 +581,8 @@
       renderMap();
     }
     if (v === 'zombies') renderZombieTable();
+    if (v === 'neighborhoods') renderCDTable();
+    if (v === 'council') renderCouncilTable();
     syncURL(getFilters());
   }
 
@@ -849,6 +868,44 @@
     `;
   }
 
+  // ── council district scorecard ───────────────────────────────────────────
+  function renderCouncilTable() {
+    const tbody = document.querySelector('#council-table tbody');
+    if (!tbody || !state.cdistricts) return;
+    // When filtered, narrow to council districts that contain matching sheds.
+    const cdistsInScope = isFiltered()
+      ? new Set(state.filtered.map(s => String(s.cdist)).filter(Boolean))
+      : null;
+    const data = cdistsInScope
+      ? state.cdistricts.filter(c => cdistsInScope.has(String(c.cdist)))
+      : state.cdistricts;
+    const sort = tableSortState('council-table') || { key: 'shed_days', type: 'num', dir: 'desc' };
+    const rows = applySort(data, sort.key, sort.type, sort.dir);
+    tbody.innerHTML = rows.map(c => `
+      <tr data-cdist="${c.cdist}">
+        <td><strong>D ${c.cdist}</strong></td>
+        <td class="num">${fmt(c.sheds)}</td>
+        <td class="num">${fmt(c.shed_days)}</td>
+        <td class="num">${fmt(c.median_days)}</td>
+        <td class="num">${fmt(c.over_5y)}</td>
+        <td class="num">${fmt(c.zombies)}</td>
+        <td class="num">${fmt(c.unsafe)}</td>
+        <td class="num">${fmt(c.distressed)}</td>
+        <td class="num">${fmt(c.complaints)}</td>
+        <td class="dim" style="font-size:11px">${c.worst_days ? `${(c.worst_days/365).toFixed(1)} yr<br><small>${c.worst_addr}</small>` : '—'}</td>
+      </tr>
+    `).join('');
+    tbody.querySelectorAll('tr').forEach(tr => {
+      tr.addEventListener('click', () => {
+        const cdist = tr.dataset.cdist;
+        clearAllFilters();
+        state._cdist = cdist;
+        switchView('map');
+        applyFilters();
+      });
+    });
+  }
+
   // ── community-district table ─────────────────────────────────────────────
   function renderCDTable() {
     const tbody = document.querySelector('#cd-table tbody');
@@ -856,7 +913,14 @@
       const boro = ({1:'Manhattan',2:'Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'})[cd[0]] || '';
       return `${boro} CD ${parseInt(cd.slice(1), 10)}`;
     };
-    const enriched = state.cd.map(c => ({ ...c, avg: Math.round(c.shed_days / Math.max(c.sheds, 1)) }));
+    // Restrict to CDs that actually contain sheds in the active filter set,
+    // so picking a neighborhood collapses the list to relevant CDs.
+    const f = getFilters();
+    const cdsInScope = isFiltered()
+      ? new Set(state.filtered.map(s => s.cd).filter(Boolean))
+      : null;
+    let enriched = state.cd.map(c => ({ ...c, avg: Math.round(c.shed_days / Math.max(c.sheds, 1)) }));
+    if (cdsInScope) enriched = enriched.filter(c => cdsInScope.has(c.cd));
     const sort = tableSortState('cd-table') || { key: 'shed_days', type: 'num', dir: 'desc' };
     const rows = applySort(enriched, sort.key, sort.type, sort.dir);
     tbody.innerHTML = rows.map(c => `

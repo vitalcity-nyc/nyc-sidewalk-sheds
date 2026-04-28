@@ -363,6 +363,34 @@ main { flex: 1; min-height: 520px; position: relative; display: flex; }
 /* MAP */
 .view-map { position: relative; flex: 1; }
 #map { position: absolute; inset: 0; }
+.map-search {
+  position: absolute;
+  top: 12px; right: 12px;
+  z-index: 500;
+  background: rgba(255,255,255,0.97);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 260px;
+}
+.map-search label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.map-search input {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+}
+.map-search input:focus { outline: 2px solid var(--vc-chartreuse); outline-offset: -1px; }
+
 .legend {
   position: absolute;
   bottom: 12px; left: 12px;
@@ -475,7 +503,7 @@ main { flex: 1; min-height: 520px; position: relative; display: flex; }
 .fisp-badge { font-weight: 600; }
 
 /* TABLES */
-.view-zombies, .view-neighborhoods, .view-trend, .view-findings {
+.view-zombies, .view-neighborhoods, .view-trend, .view-findings, .view-council {
   padding: 14px 16px;
   overflow: auto;
   flex-direction: column;
