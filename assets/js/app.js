@@ -47,6 +47,7 @@
     });
     attachSort('zombie-table', null, renderZombieTable);
     attachSort('cd-table', null, renderCDTable);
+    populateCDDropdown();
     renderFindings();
     renderTrend();
     paintSummary(summary);
@@ -68,6 +69,28 @@
     document.getElementById('s-unsafe').textContent = fmt(s.fisp_unsafe || 0);
     document.getElementById('s-distress').textContent = fmt(s.high_distress || 0);
     document.getElementById('s-asof').textContent = s.as_of;
+  }
+  function paintFilteredStats() {
+    const sel = state.filtered;
+    if (!sel.length) {
+      ['s-total','s-median','s-1y','s-5y','s-zombie','s-unsafe','s-distress'].forEach(id => {
+        document.getElementById(id).textContent = '0';
+      });
+      return;
+    }
+    const days = sel.map(s => s.days).sort((a,b) => a-b);
+    document.getElementById('s-total').textContent = fmt(sel.length);
+    document.getElementById('s-median').textContent = fmt(days[Math.floor(days.length/2)]);
+    document.getElementById('s-1y').textContent = fmt(sel.filter(s => s.days >= 365).length);
+    document.getElementById('s-5y').textContent = fmt(sel.filter(s => s.days >= 1825).length);
+    document.getElementById('s-zombie').textContent = fmt(sel.filter(s => s.zombie).length);
+    document.getElementById('s-unsafe').textContent = fmt(sel.filter(s => s.fisp === 'UNSAFE').length);
+    document.getElementById('s-distress').textContent = fmt(sel.filter(s => (s.distress || 0) >= 10).length);
+  }
+  function isFiltered() {
+    const f = getFilters();
+    return state.buckets.size || state.fisp.size || state.flags.size
+      || f.boro || f.zombie || f.q || f.cd;
   }
 
   function passesFlags(s) {
@@ -112,8 +135,8 @@
     const g = L.layerGroup();
     for (const s of state.filtered) {
       const m = L.circleMarker([s.lat, s.lon], {
-        radius: s.days >= 1825 ? 6 : (s.days >= 365 ? 5 : 4),
-        weight: 0.5,
+        radius: s.days >= 1825 ? 4 : (s.days >= 365 ? 3.2 : 2.6),
+        weight: 0.4,
         color: '#000',
         fillColor: colorFor(s.days),
         fillOpacity: 0.85,
@@ -141,7 +164,7 @@
     Object.values(groups).forEach(grp => {
       if (chronicOnly && grp.items.length < 2) return;
       const n = grp.items.length;
-      const radius = n === 1 ? 6 : Math.min(6 + (n - 1) * 3, 16);
+      const radius = n === 1 ? 5 : Math.min(5 + (n - 1) * 2, 13);
       const isChronic = n >= 2;
       const m = L.circleMarker([grp.lat, grp.lon], {
         radius,
@@ -188,6 +211,7 @@
   function getFilters() {
     return {
       boro: document.getElementById('f-boro').value,
+      cd: document.getElementById('f-cd').value,
       dur: document.getElementById('f-dur').value,
       zombie: document.getElementById('f-zombie').checked,
       q: document.getElementById('f-q').value.trim().toLowerCase(),
@@ -198,6 +222,7 @@
     const f = getFilters();
     state.filtered = state.sheds.filter(s => {
       if (f.boro && s.boro !== f.boro) return false;
+      if (f.cd && s.cd !== f.cd) return false;
       if (state.buckets.size && !state.buckets.has(bucketOf(s.days))) return false;
       if (state.fisp.size && !state.fisp.has(FISP_KEY(s))) return false;
       if (!passesFlags(s)) return false;
@@ -210,14 +235,48 @@
     });
     document.getElementById('f-count').textContent =
       `${fmt(state.filtered.length)} of ${fmt(state.sheds.length)} sheds`;
+    if (isFiltered()) {
+      paintFilteredStats();
+      document.querySelector('.topbar').classList.add('filtered');
+    } else {
+      paintSummary(state.summary);
+      document.querySelector('.topbar').classList.remove('filtered');
+    }
     if (state.view === 'map') renderMap();
     if (state.view === 'zombies') renderZombieTable();
+    updateNowShowing();
     syncURL(f);
   }
 
+  function clearActivePreset() {
+    document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
+  }
+  function populateCDDropdown() {
+    const sel = document.getElementById('f-cd');
+    const boroFilter = document.getElementById('f-boro').value;
+    const BORO_PREFIX = { Manhattan: '1', Bronx: '2', Brooklyn: '3', Queens: '4', 'Staten Island': '5' };
+    const want = boroFilter ? BORO_PREFIX[boroFilter] : null;
+    const cds = state.cd
+      .filter(c => !want || c.cd[0] === want)
+      .sort((a, b) => a.cd.localeCompare(b.cd));
+    const cdLabel = (cd) => {
+      const boro = ({1:'Manhattan',2:'Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'})[cd[0]] || '';
+      return `${boro} CD ${parseInt(cd.slice(1), 10)}`;
+    };
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All</option>' + cds.map(c =>
+      `<option value="${c.cd}">${cdLabel(c.cd)} (${fmt(c.sheds)})</option>`
+    ).join('');
+    if (cds.some(c => c.cd === current)) sel.value = current;
+  }
   ['f-boro','f-zombie','f-q'].forEach(id => {
-    document.getElementById(id).addEventListener('input', applyFilters);
+    document.getElementById(id).addEventListener('input', () => {
+      clearActivePreset();
+      if (id === 'f-boro') populateCDDropdown();
+      applyFilters();
+    });
   });
+  document.getElementById('f-cd').addEventListener('change', () => { clearActivePreset(); applyFilters(); });
   document.getElementById('f-reset').addEventListener('click', () => {
     document.getElementById('f-boro').value = '';
     document.getElementById('f-zombie').checked = false;
@@ -257,8 +316,122 @@
     root.querySelector('.leg-btn[data-toggle="chronic"]').classList.toggle('active',
       document.getElementById('f-chronic').checked);
   }
+  // ── presets ──────────────────────────────────────────────────────────────
+  const PRESETS = {
+    'zombies': {
+      label: 'Why is this still up?',
+      desc: '<strong>Zombie sheds.</strong> Up over a year, no recent non-shed work, and no documented unsafe-façade filing — the strongest signal of a shed sitting there for no defensible reason.',
+      apply: () => {
+        clearAllFilters();
+        document.getElementById('f-zombie').checked = true;
+      },
+    },
+    'safe-shedded': {
+      label: 'Safe but still shedded',
+      desc: '<strong>Sheds at buildings the city has rated SAFE</strong> in their most recent Local Law 11 façade filing. The façade is certified fine — yet the sidewalk shed is still up.',
+      apply: () => { clearAllFilters(); state.fisp.add('SAFE'); },
+    },
+    'distressed-long': {
+      label: 'Distressed buildings, sheds >5 years',
+      desc: '<strong>Long-standing sheds at distressed buildings.</strong> Five-plus years of permit coverage at buildings with substantial open HPD violations or AEP enrollment. The shed is the visible symptom of a deeper problem.',
+      apply: () => {
+        clearAllFilters();
+        state.flags.add('distress');
+        state.buckets.add('1825-99999');
+      },
+    },
+    'chronic': {
+      label: 'Where complaints repeat',
+      desc: '<strong>Chronic 311 sites.</strong> Locations with two or more scaffold-safety complaints in the past 12 months — the addresses where neighbors keep flagging the same problem.',
+      apply: () => {
+        clearAllFilters();
+        document.getElementById('f-311').checked = true;
+        document.getElementById('f-chronic').checked = true;
+      },
+    },
+    'oldest': {
+      label: 'The oldest sheds',
+      desc: '<strong>Sheds with over five years of continuous permit coverage.</strong> Of these, dozens stretch past a decade. Sort the Top sheds tab by Days up to see the leaderboard.',
+      apply: () => { clearAllFilters(); state.buckets.add('1825-99999'); },
+    },
+    'reset': {
+      label: 'Clear all',
+      desc: null,
+      apply: () => { clearAllFilters(); },
+    },
+  };
+
+  function clearAllFilters() {
+    state.buckets.clear();
+    state.fisp.clear();
+    state.flags.clear();
+    document.getElementById('f-boro').value = '';
+    document.getElementById('f-zombie').checked = false;
+    document.getElementById('f-q').value = '';
+    document.getElementById('f-311').checked = false;
+    document.getElementById('f-chronic').checked = false;
+  }
+
+  function applyPreset(key) {
+    const p = PRESETS[key];
+    if (!p) return;
+    p.apply();
+    document.querySelectorAll('.preset').forEach(b => b.classList.toggle('active', b.dataset.preset === key && key !== 'reset'));
+    syncLegend();
+    render311();
+    applyFilters();
+    if (state.view !== 'map') switchView('map');
+  }
+
+  document.querySelectorAll('.preset').forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+  });
+
+  function describeFilters() {
+    const f = getFilters();
+    const parts = [];
+    if (state.buckets.size) {
+      const labels = { '0-90': 'under 90 days', '90-365': '90–365 days', '365-1095': '1–3 years', '1095-1825': '3–5 years', '1825-99999': 'over 5 years' };
+      parts.push(`up ${[...state.buckets].map(b => labels[b]).join(' or ')}`);
+    }
+    if (state.fisp.size) {
+      const labels = { UNSAFE: 'documented Unsafe façade', SWARMP: 'SWARMP-rated façade (needs repair)', SAFE: 'Safe-rated façade', NONE: 'no LL11 filing on record' };
+      parts.push(`with ${[...state.fisp].map(k => labels[k]).join(' or ')}`);
+    }
+    if (state.flags.has('distress')) parts.push('at distressed buildings (HPD/AEP)');
+    if (state.flags.has('aep')) parts.push('on the HPD AEP list');
+    if (f.zombie) parts.push('flagged zombie');
+    if (f.cd) {
+      const boro = ({1:'Manhattan',2:'Bronx',3:'Brooklyn',4:'Queens',5:'Staten Island'})[f.cd[0]] || '';
+      parts.push(`in ${boro} CD ${parseInt(f.cd.slice(1), 10)}`);
+    } else if (f.boro) {
+      parts.push(`in ${f.boro}`);
+    }
+    if (f.q) parts.push(`matching "${f.q}"`);
+    return parts.join(', ');
+  }
+
+  function updateNowShowing() {
+    const el = document.getElementById('now-showing');
+    if (!el) return;
+    const activePreset = document.querySelector('.preset.active');
+    if (activePreset && activePreset.dataset.preset && PRESETS[activePreset.dataset.preset].desc) {
+      const c311 = document.getElementById('f-311').checked ? ' Plus 311 scaffold-safety complaints (past 12 months) overlaid.' : '';
+      el.innerHTML = PRESETS[activePreset.dataset.preset].desc + c311
+        + ` <span class="ns-hint">— ${fmt(state.filtered.length)} sheds.</span>`;
+      return;
+    }
+    const desc = describeFilters();
+    if (!desc) {
+      el.innerHTML = `Showing all <strong>${fmt(state.sheds.length)}</strong> active sheds. <span class="ns-hint">Click a preset above, or use the legend on the map to ask your own question.</span>`;
+    } else {
+      el.innerHTML = `Showing <strong>${fmt(state.filtered.length)}</strong> sheds — ${desc}.`;
+    }
+  }
+
   document.querySelectorAll('#legend .leg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      clearActivePreset();
       if (btn.dataset.bucket) {
         const b = btn.dataset.bucket;
         if (state.buckets.has(b)) state.buckets.delete(b); else state.buckets.add(b);

@@ -48,6 +48,17 @@ html, body { height: 100%; }
   grid-template-columns: repeat(8, 1fr);
   border-bottom: 1px solid var(--border);
   background: var(--bg-soft);
+  position: relative;
+}
+.topbar.filtered { background: #fffbe9; box-shadow: inset 0 -2px 0 var(--vc-chartreuse); }
+.topbar.filtered::before {
+  content: "Filtered selection";
+  position: absolute; top: 4px; left: 14px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--vc-magenta);
 }
 .stat {
   padding: 12px 14px;
@@ -111,6 +122,59 @@ html, body { height: 100%; }
   border-left: 1px solid var(--border);
 }
 .meth:hover { color: var(--ink); }
+
+/* PRESETS */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+.presets-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin-right: 4px;
+}
+.preset {
+  padding: 5px 11px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  border-radius: 14px;
+  white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s;
+}
+.preset:hover { background: var(--vc-chartreuse-20); border-color: var(--vc-chartreuse); }
+.preset.active { background: var(--vc-chartreuse); border-color: var(--vc-chartreuse); font-weight: 600; }
+.preset small { color: var(--ink-soft); font-weight: 400; margin-left: 2px; }
+.preset.active small { color: var(--ink); }
+.preset.clear { margin-left: auto; color: var(--ink-soft); border-style: dashed; }
+.preset.clear:hover { background: var(--bg-soft); border-color: var(--ink-soft); }
+
+.now-showing {
+  padding: 9px 14px;
+  font-size: 13px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+  line-height: 1.4;
+}
+.now-showing strong { color: var(--vc-bad); font-weight: 700; }
+.now-showing .ns-hint {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-style: italic;
+}
 
 /* FILTERS */
 .filters {

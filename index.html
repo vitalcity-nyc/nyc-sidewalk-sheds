@@ -56,12 +56,29 @@
     <a class="meth" href="methodology.html" target="_blank" rel="noopener">Methodology</a>
   </nav>
 
+  <section class="presets" id="presets">
+    <span class="presets-label">Start with a question:</span>
+    <button class="preset" data-preset="zombies">Why is this still up? <small>(zombies)</small></button>
+    <button class="preset" data-preset="safe-shedded">Safe but still shedded</button>
+    <button class="preset" data-preset="distressed-long">Distressed buildings, sheds &gt;5 years</button>
+    <button class="preset" data-preset="chronic">Where complaints repeat</button>
+    <button class="preset" data-preset="oldest">The oldest sheds</button>
+    <button class="preset clear" data-preset="reset">Clear all</button>
+  </section>
+
+  <p class="now-showing" id="now-showing">Showing all 7,439 active sheds.</p>
+
   <section class="filters" id="filters">
     <label>Borough
       <select id="f-boro">
         <option value="">All</option>
         <option>Manhattan</option><option>Brooklyn</option><option>Queens</option>
         <option>Bronx</option><option>Staten Island</option>
+      </select>
+    </label>
+    <label>Community district
+      <select id="f-cd">
+        <option value="">All</option>
       </select>
     </label>
     <label class="check">
