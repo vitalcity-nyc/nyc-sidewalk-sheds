@@ -979,6 +979,216 @@
     }
   }
 
+  // ── address lookup + civic action ────────────────────────────────────────
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+    return R * 2 * Math.asin(Math.sqrt(a));
+  }
+  const ADDR_RADIUS_M = 400;  // ¼ mile
+
+  async function geocodeNYC(q) {
+    const url = `https://geosearch.planninglabs.nyc/v2/search?text=${encodeURIComponent(q)}&size=1`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Geocode failed');
+    const j = await r.json();
+    if (!j.features || !j.features.length) return null;
+    const f = j.features[0];
+    return {
+      lat: f.geometry.coordinates[1],
+      lon: f.geometry.coordinates[0],
+      label: f.properties.label,
+      borough: f.properties.borough,
+      bbl: f.properties.pad_bbl || '',
+    };
+  }
+
+  async function runAddressLookup(query) {
+    const out = document.getElementById('addr-results');
+    const btn = document.getElementById('addr-go');
+    btn.disabled = true; btn.textContent = 'Searching…';
+    out.hidden = false;
+    out.innerHTML = '<div class="addr-summary">Looking up address…</div>';
+    let geo;
+    try {
+      geo = await geocodeNYC(query);
+    } catch (e) {
+      out.innerHTML = `<div class="addr-summary"><span class="err">Geocoding service is offline. Try again in a moment.</span></div>`;
+      btn.disabled = false; btn.textContent = 'Find sheds near here';
+      return;
+    }
+    if (!geo) {
+      out.innerHTML = `<div class="addr-summary"><span class="err">Couldn't find that address in NYC.</span> Try the full street form, e.g. "350 5th Avenue, Manhattan."</div>`;
+      btn.disabled = false; btn.textContent = 'Find sheds near here';
+      return;
+    }
+    const enriched = state.sheds.map(s => ({
+      s, dist: haversine(geo.lat, geo.lon, s.lat, s.lon),
+    })).filter(x => x.dist <= ADDR_RADIUS_M)
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, 30);
+    paintAddressResults(geo, enriched);
+    btn.disabled = false; btn.textContent = 'Find sheds near here';
+  }
+
+  function paintAddressResults(geo, hits) {
+    const out = document.getElementById('addr-results');
+    if (!hits.length) {
+      out.innerHTML = `
+        <div class="addr-summary">
+          Found <strong>${geo.label}</strong>. <strong>No active DOB-permitted sidewalk sheds</strong>
+          within a quarter-mile radius. Lucky you.
+        </div>`;
+      return;
+    }
+    const total = hits.length;
+    const longest = hits.reduce((m, x) => x.s.days > m.s.days ? x : m, hits[0]);
+    const zombies = hits.filter(x => x.s.zombie).length;
+    out.innerHTML = `
+      <div class="addr-summary">
+        Found <strong>${geo.label}</strong>. There ${total === 1 ? 'is' : 'are'}
+        <strong>${total} active sidewalk shed${total > 1 ? 's' : ''}</strong>
+        within a ¼-mile radius${zombies ? `, of which <strong>${zombies}</strong> ${zombies > 1 ? 'are' : 'is'} flagged zombie` : ''}.
+        The longest-running is at <strong>${longest.s.addr}</strong> (${(longest.s.days/365).toFixed(1)} years).
+      </div>
+      ${hits.map(x => shedCardHTML(x.s, x.dist)).join('')}
+    `;
+    out.querySelectorAll('[data-action="email"]').forEach(b => {
+      b.addEventListener('click', () => {
+        const bin = b.dataset.bin;
+        const s = state.sheds.find(s => s.bin === bin);
+        if (s) openCivicEmail(s);
+      });
+    });
+    out.querySelectorAll('[data-action="map"]').forEach(b => {
+      b.addEventListener('click', () => {
+        const bin = b.dataset.bin;
+        const s = state.sheds.find(s => s.bin === bin);
+        if (!s) return;
+        switchView('map');
+        setTimeout(() => {
+          map.setView([s.lat, s.lon], 18);
+          L.popup({ maxWidth: 280 }).setLatLng([s.lat, s.lon]).setContent(popupHTML(s)).openOn(map);
+        }, 100);
+      });
+    });
+  }
+
+  function shedCardHTML(s, dist) {
+    const cls = s.zombie ? 'zombie' : (s.fisp === 'UNSAFE' ? 'unsafe' : '');
+    const distFt = Math.round(dist * 3.28084);
+    const fispLbl = FISP_LABEL[FISP_KEY(s)] || FISP_KEY(s);
+    return `
+      <div class="shed-card ${cls}">
+        <div>
+          <div class="shed-card-head">${s.addr}, ${s.boro}</div>
+          <div class="shed-card-meta">${distFt < 528 ? distFt + ' ft away' : (distFt/5280).toFixed(2) + ' mi away'} · BIN ${s.bin}</div>
+          <div class="shed-card-body">
+            <div><span class="label">Time under shed</span> <strong>${(s.days/365).toFixed(1)} years</strong> (since ${s.first})</div>
+            <div><span class="label">Property owner</span> ${s.owner === '—' ? 'not on file' : titleCase(s.owner)}</div>
+            <div><span class="label">Façade (LL11)</span> ${fispLbl}${s.fisp_cycle ? ` · cycle ${s.fisp_cycle}` : ''}</div>
+            ${(s.hpd_c || s.hpd_b) ? `<div><span class="label">Open HPD violations</span> ${s.hpd_c || 0} immediately hazardous, ${s.hpd_b || 0} significant</div>` : ''}
+            ${s.complaints ? `<div><span class="label">311 complaints (12 mo)</span> <strong>${s.complaints}</strong></div>` : ''}
+            ${s.zombie ? '<div><span class="label">Status</span> <strong style="color:#d2232a">Zombie shed</strong></div>' : ''}
+          </div>
+        </div>
+        <div class="shed-card-actions">
+          <button data-action="map" data-bin="${s.bin}">Show on map</button>
+          <button class="primary" data-action="email" data-bin="${s.bin}">✉ Draft email</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function openCivicEmail(s) {
+    const yrs = (s.days / 365).toFixed(1);
+    const fispLine = FISP_LABEL[FISP_KEY(s)] === 'Unsafe'
+      ? `The building's most recent Local Law 11 façade filing is "Unsafe" (cycle ${s.fisp_cycle || '—'}), which means a shed is legally required.`
+      : (FISP_LABEL[FISP_KEY(s)] === 'Safe'
+        ? `The building's most recent Local Law 11 façade filing is "Safe" — meaning the façade is certified safe yet the shed is still in place.`
+        : `The building's most recent Local Law 11 façade filing is "${FISP_LABEL[FISP_KEY(s)] || 'not on record'}".`);
+    const hpdLine = (s.hpd_c || s.hpd_b)
+      ? `HPD records ${s.hpd_c || 0} open immediately-hazardous (Class C) and ${s.hpd_b || 0} significant (Class B) housing violations on the property.`
+      : '';
+    const subject = `Sidewalk shed at ${s.addr}, ${s.boro} — up ${yrs} years`;
+    const body =
+`I'm writing about the sidewalk shed at ${s.addr}, ${s.boro}.
+
+According to NYC Department of Buildings records, this building has had continuous shed-permit coverage since ${s.first} — about ${yrs} years. The current permit expires ${s.exp || 'soon'}.
+
+${fispLine}
+${hpdLine}
+${s.zombie ? 'No DOB job filing for non-shed construction work has had a status update at this building in the past year, so the shed appears to be standing without active work to justify it.' : ''}
+
+Could your office look into why this shed has been up so long, what (if any) façade or structural work remains, and what would be required to bring it down? Constituents want clear pedestrian sidewalks restored where they are not strictly needed for safety.
+
+Reference:
+- Property: ${s.addr}, ${s.boro} (BIN ${s.bin})
+- Owner per PLUTO: ${s.owner === '—' ? 'not on file' : titleCase(s.owner)}
+- Council District: ${s.cdist || '—'}
+- Community District: ${s.cd || '—'}
+- DOB job filing: ${s.job || '—'}
+- Source: ${location.origin}${location.pathname}`;
+
+    const cm = `https://council.nyc.gov/districts/`;
+    const cb = (s.boro || '').toLowerCase().replace(' ', '-') + '-cb' + (s.cd ? s.cd.slice(1).replace(/^0/, '') : '');
+    const subjectEnc = encodeURIComponent(subject);
+    const bodyEnc = encodeURIComponent(body);
+    const html = `
+      <div class="modal-card" style="max-width:640px">
+        <h3>Draft a message about ${s.addr}</h3>
+        <p>Personalize the text below, then send it to your council member, community board, or 311. <strong>Your council district is ${s.cdist || 'unknown'}; community district is ${s.cd || 'unknown'}.</strong></p>
+        <textarea id="civic-body" style="height:280px;white-space:pre-wrap">${body}</textarea>
+        <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+          <a class="primary" href="mailto:?subject=${subjectEnc}&body=${bodyEnc}" id="civic-mailto">Open in email</a>
+          <a href="${cm}" target="_blank" rel="noopener">Find your council member →</a>
+          <a href="https://portal.311.nyc.gov/" target="_blank" rel="noopener">File with 311 →</a>
+          <button id="civic-copy">Copy text</button>
+          <button id="civic-close" style="margin-left:auto">Close</button>
+        </div>
+      </div>
+    `;
+    let modal = document.getElementById('civic-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'civic-modal';
+      modal.className = 'modal';
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = html;
+    modal.hidden = false;
+    document.getElementById('civic-close').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+    document.getElementById('civic-copy').addEventListener('click', async () => {
+      const text = document.getElementById('civic-body').value;
+      try {
+        await navigator.clipboard.writeText(text);
+        const btn = document.getElementById('civic-copy');
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      } catch (e) {}
+    });
+    document.getElementById('civic-mailto').addEventListener('click', e => {
+      const text = document.getElementById('civic-body').value;
+      e.target.href = `mailto:?subject=${subjectEnc}&body=${encodeURIComponent(text)}`;
+    });
+  }
+
+  document.getElementById('addr-go').addEventListener('click', () => {
+    const q = document.getElementById('addr-input').value.trim();
+    if (q) runAddressLookup(q);
+  });
+  document.getElementById('addr-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = e.target.value.trim();
+      if (q) runAddressLookup(q);
+    }
+  });
+
   // ── time machine ─────────────────────────────────────────────────────────
   let twPlayTimer = null;
   function buildTimeWarpAxis() {
