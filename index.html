@@ -53,8 +53,24 @@
     <button class="tab" data-view="zombies" role="tab">Top sheds</button>
     <button class="tab" data-view="neighborhoods" role="tab">By neighborhood</button>
     <button class="tab" data-view="trend" role="tab">Trend over time</button>
+    <button class="iconbtn" id="btn-fullscreen" title="Toggle full screen" aria-label="Toggle full screen">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9"/></svg>
+    </button>
+    <button class="iconbtn" id="btn-embed" title="Copy embed code" aria-label="Copy embed code">&lt;/&gt;</button>
     <a class="meth" href="methodology.html" target="_blank" rel="noopener">Methodology</a>
   </nav>
+
+  <div class="modal" id="embed-modal" hidden>
+    <div class="modal-card">
+      <h3>Embed this</h3>
+      <p>Paste the snippet below into a Ghost <strong>HTML card</strong> (press <code>/</code> in the editor and choose HTML).</p>
+      <textarea readonly id="embed-code"></textarea>
+      <div class="modal-actions">
+        <button id="embed-copy">Copy</button>
+        <button id="embed-close">Close</button>
+      </div>
+    </div>
+  </div>
 
   <section class="presets" id="presets">
     <span class="presets-label">Start with a question:</span>
@@ -63,10 +79,21 @@
     <button class="preset" data-preset="distressed-long">Distressed buildings, sheds &gt;5 years</button>
     <button class="preset" data-preset="chronic">Where complaints repeat</button>
     <button class="preset" data-preset="oldest">The oldest sheds</button>
+    <button class="preset" data-preset="timewarp">▶ Replay 2010 → today</button>
     <button class="preset clear" data-preset="reset">Clear all</button>
   </section>
 
   <p class="now-showing" id="now-showing">Showing all 7,439 active sheds.</p>
+
+  <section class="timewarp" id="timewarp" hidden>
+    <button class="tw-play" id="tw-play" aria-label="Play">▶</button>
+    <input type="range" id="tw-slider" min="0" max="0" value="0" step="1">
+    <div class="tw-readout">
+      <strong id="tw-month">—</strong>
+      <span id="tw-counts" class="tw-counts">—</span>
+    </div>
+    <button class="tw-close" id="tw-close" aria-label="Close">×</button>
+  </section>
 
   <section class="filters" id="filters">
     <label>Borough

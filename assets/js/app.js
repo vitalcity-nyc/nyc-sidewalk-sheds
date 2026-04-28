@@ -249,6 +249,10 @@
   }
 
   function applyFilters() {
+    if (state.timewarp) {
+      // Time machine is driving the map; ignore normal filter pipeline.
+      return;
+    }
     const f = getFilters();
     state.filtered = state.sheds.filter(s => {
       if (f.boro && s.boro !== f.boro) return false;
@@ -384,10 +388,15 @@
       desc: '<strong>Sheds with over five years of continuous permit coverage.</strong> Of these, dozens stretch past a decade. Sort the Top sheds tab by Days up to see the leaderboard.',
       apply: () => { clearAllFilters(); state.buckets.add('1825-99999'); },
     },
+    'timewarp': {
+      label: 'Replay 2010 → today',
+      desc: '<strong>Time machine.</strong> Drag to a month and the map shows only currently-active sheds whose permit run had already started by that date. Watch how today\'s long-runners accumulated.',
+      apply: () => { clearAllFilters(); enableTimeWarp(); },
+    },
     'reset': {
       label: 'Clear all',
       desc: null,
-      apply: () => { clearAllFilters(); },
+      apply: () => { clearAllFilters(); disableTimeWarp(); },
     },
   };
 
@@ -858,6 +867,119 @@
       window.parent.postMessage({ type: 'embed-state', view: state.view, count: state.filtered.length }, '*');
     }
   }
+
+  // ── time machine ─────────────────────────────────────────────────────────
+  let twPlayTimer = null;
+  function buildTimeWarpAxis() {
+    // Months from 2010-01 to current month, inclusive.
+    const months = [];
+    let y = 2010, m = 1;
+    const today = new Date();
+    while (y < today.getFullYear() || (y === today.getFullYear() && m <= today.getMonth() + 1)) {
+      months.push(`${y}-${String(m).padStart(2, '0')}-01`);
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    return months;
+  }
+  state.twMonths = buildTimeWarpAxis();
+  function enableTimeWarp() {
+    state.timewarp = true;
+    state.twIdx = state.twMonths.length - 1;
+    document.getElementById('timewarp').hidden = false;
+    const slider = document.getElementById('tw-slider');
+    slider.max = state.twMonths.length - 1;
+    slider.value = state.twIdx;
+    paintTimeWarp();
+  }
+  function disableTimeWarp() {
+    state.timewarp = false;
+    document.getElementById('timewarp').hidden = true;
+    if (twPlayTimer) { clearInterval(twPlayTimer); twPlayTimer = null; }
+    document.getElementById('tw-play').classList.remove('playing');
+    document.getElementById('tw-play').textContent = '▶';
+    applyFilters();  // safe now that state.timewarp = false
+  }
+  function paintTimeWarp() {
+    const month = state.twMonths[state.twIdx];
+    const cutoff = month;
+    const visible = state.sheds.filter(s => s.first && s.first <= cutoff);
+    const monthLabel = new Date(month).toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+    document.getElementById('tw-month').textContent = monthLabel;
+    document.getElementById('tw-counts').textContent =
+      `${fmt(visible.length)} of today's ${fmt(state.sheds.length)} sheds were already up`;
+    state.filtered = visible;
+    document.getElementById('f-count').textContent =
+      `${fmt(visible.length)} of ${fmt(state.sheds.length)} sheds`;
+    paintFilteredStats();
+    document.querySelector('.topbar').classList.add('filtered');
+    if (state.view === 'map') renderMap();
+  }
+  document.getElementById('tw-slider').addEventListener('input', (e) => {
+    state.twIdx = +e.target.value;
+    paintTimeWarp();
+  });
+  document.getElementById('tw-play').addEventListener('click', () => {
+    const btn = document.getElementById('tw-play');
+    if (twPlayTimer) {
+      clearInterval(twPlayTimer); twPlayTimer = null;
+      btn.classList.remove('playing'); btn.textContent = '▶';
+      return;
+    }
+    btn.classList.add('playing'); btn.textContent = '❚❚';
+    if (state.twIdx >= state.twMonths.length - 1) state.twIdx = 0;
+    twPlayTimer = setInterval(() => {
+      state.twIdx++;
+      if (state.twIdx >= state.twMonths.length) {
+        state.twIdx = state.twMonths.length - 1;
+        clearInterval(twPlayTimer); twPlayTimer = null;
+        btn.classList.remove('playing'); btn.textContent = '▶';
+      }
+      document.getElementById('tw-slider').value = state.twIdx;
+      paintTimeWarp();
+    }, 110);
+  });
+  document.getElementById('tw-close').addEventListener('click', () => {
+    document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
+    disableTimeWarp();
+  });
+
+  // ── fullscreen + embed code ──────────────────────────────────────────────
+  document.getElementById('btn-fullscreen').addEventListener('click', () => {
+    const root = document.querySelector('.embed');
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else if (root.requestFullscreen) {
+      root.requestFullscreen();
+    }
+  });
+
+  const embedModal = document.getElementById('embed-modal');
+  const embedCode = document.getElementById('embed-code');
+  document.getElementById('btn-embed').addEventListener('click', () => {
+    const url = 'https://vitalcity-nyc.github.io/nyc-sidewalk-sheds/';
+    embedCode.value =
+      `<iframe src="${url}" width="100%" height="780" frameborder="0" loading="lazy" style="border:1px solid #e6e6e0;display:block" title="NYC sidewalk sheds — interactive tracker"></iframe>`;
+    embedModal.hidden = false;
+    embedCode.select();
+  });
+  document.getElementById('embed-close').addEventListener('click', () => {
+    embedModal.hidden = true;
+  });
+  embedModal.addEventListener('click', (e) => {
+    if (e.target === embedModal) embedModal.hidden = true;
+  });
+  document.getElementById('embed-copy').addEventListener('click', async () => {
+    embedCode.select();
+    try {
+      await navigator.clipboard.writeText(embedCode.value);
+      const btn = document.getElementById('embed-copy');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    } catch (e) {
+      document.execCommand('copy');
+    }
+  });
 
   // iframe height-resize ping
   function postHeight() {
