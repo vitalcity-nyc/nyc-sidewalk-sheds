@@ -50,51 +50,82 @@ body {
 .embed > main { flex: 1 1 auto; min-height: 380px; }
 html, body { height: 100%; }
 
-/* HERO */
+/* HERO — dark editorial band, Vital City signature treatment */
 .hero {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px 12px;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
+  gap: 24px;
+  padding: 18px 22px 16px;
+  background: var(--vc-black);
+  color: var(--vc-white);
+  border-bottom: 4px solid var(--vc-chartreuse);
+  position: relative;
+}
+.hero-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vc-chartreuse);
+  margin-bottom: 6px;
 }
 .hero-title {
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  margin-bottom: 2px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  color: var(--vc-white);
+  margin-bottom: 6px;
 }
 .hero-tag {
-  font-size: 12.5px;
-  color: var(--ink-soft);
-  line-height: 1.45;
-  max-width: 720px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.72);
+  line-height: 1.5;
+  max-width: 680px;
+  font-weight: 400;
 }
 .hero-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
+  padding-bottom: 2px;
 }
 .hero-asof {
-  font-size: 11px;
-  color: var(--ink-soft);
-  margin-right: 8px;
-}
-.hero-asof strong { color: var(--ink); font-weight: 600; }
-.hero-cta {
-  background: var(--ink);
-  color: var(--vc-white);
-  padding: 7px 14px;
-  font-size: 12px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   font-weight: 600;
-  text-decoration: none;
-  border: 1px solid var(--ink);
-  letter-spacing: 0.005em;
+  margin-right: 6px;
+  white-space: nowrap;
 }
-.hero-cta:hover { background: var(--vc-bad); border-color: var(--vc-bad); }
+.hero-asof strong { color: var(--vc-chartreuse); font-weight: 700; }
+.hero-cta {
+  background: var(--vc-chartreuse);
+  color: var(--vc-black);
+  padding: 9px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  border: none;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.hero-cta:hover { background: var(--vc-white); }
+.hero .iconbtn {
+  border: 1px solid rgba(255,255,255,0.18);
+  background: transparent;
+  color: rgba(255,255,255,0.7);
+  border-left: 1px solid rgba(255,255,255,0.18);
+}
+.hero .iconbtn:hover {
+  background: var(--vc-chartreuse);
+  color: var(--vc-black);
+  border-color: var(--vc-chartreuse);
+}
 .icon-fs { padding: 4px 10px; }
 
 /* COMPACT MODE — hides chrome, leaves stats + map + legend */

@@ -37,16 +37,16 @@
 <p>This is a conservative measure of <em>continuous shed-permit coverage</em> at the building, not a guarantee that the same physical shed has stood there continuously. Owners sometimes take a shed down and re-erect a new one within weeks; that would still bridge under our rule. The 30-day window is tight enough to filter routine renewal paperwork lag while breaking when there is a real interruption.</p>
 <div class="caveat"><strong>Worked example.</strong> 409 Edgecombe Avenue (Manhattan) has had 23 legacy shed permits and three DOB NOW permits going back to 2002. Sorted by issuance, every renewal is within 30 days of the previous expiration <em>except</em> a 75-day gap between April and June 2004 and a 47-day gap in 2020 — splitting the building's permit history into three runs under the 30-day rule. The current run is reported as days-up; earlier runs are not. Under a 60-day rule, the 2020 gap would close and "days up" would jump to nearly 22 years.</div>
 
-<h2>Façade compliance (Local Law 11 / FISP)</h2>
-<p>For each shed-bearing building, we look up its most recent filing in DOB NOW: Façade Compliance Filings (<code>xubg-57si</code>) and report the <code>current_status</code>. NYC's FISP requires owners of buildings six stories or taller to inspect façades every five years and file one of:</p>
+<h2>Facade compliance (Local Law 11 / FISP)</h2>
+<p>For each shed-bearing building, we look up its most recent filing in DOB NOW: Facade Compliance Filings (<code>xubg-57si</code>) and report the <code>current_status</code>. NYC's FISP requires owners of buildings six stories or taller to inspect facades every five years and file one of:</p>
 <ul>
-  <li><strong>Unsafe.</strong> Façade poses a hazard. The shed is a documented requirement.</li>
-  <li><strong>SWARMP</strong> (Safe With A Repair And Maintenance Program). Façade has issues that must be addressed by the next cycle.</li>
-  <li><strong>Safe.</strong> Façade certified safe. A shed at a SAFE-rated building is a flag.</li>
+  <li><strong>Unsafe.</strong> Facade poses a hazard. The shed is a documented requirement.</li>
+  <li><strong>SWARMP</strong> (Safe With A Repair And Maintenance Program). Facade has issues that must be addressed by the next cycle.</li>
+  <li><strong>Safe.</strong> Facade certified safe. A shed at a SAFE-rated building is a flag.</li>
   <li><strong>No Report Filed.</strong> The owner missed the filing deadline.</li>
   <li><strong>No filing on record.</strong> Building under six stories, or the owner never participated.</li>
 </ul>
-<p>Roughly 17% of active sheds are at buildings with an Unsafe filing — those sheds are justified. Roughly 6% are at buildings rated Safe. About 58% are at buildings with no FISP record at all, which usually means a building under six stories.</p>
+<p>About 17 percent of active sheds are at buildings with an Unsafe filing — those sheds are justified. About 6 percent are at buildings rated Safe. About 58 percent are at buildings with no FISP record at all, which usually means a building under six stories.</p>
 
 <h2>What makes a "zombie shed"</h2>
 <p>A shed is flagged as a zombie when all three of these are true:</p>
@@ -55,7 +55,7 @@
   <li>No DOB job filing for non-shed construction work has had a status update at the building in the last 365 days, and</li>
   <li>The building's most recent FISP filing is <em>not</em> Unsafe (an Unsafe filing means the shed is legally required).</li>
 </ul>
-<p>The intent is to surface sheds that are still up despite no documented hazard and no construction proceeding. This isn't perfect — work can be filed under a related building, or a façade may genuinely be deteriorating without an Unsafe filing — but it isolates the cases most worth a closer look.</p>
+<p>The intent is to surface sheds that are still up despite no documented hazard and no construction proceeding. This isn't perfect — work can be filed under a related building, or a facade may genuinely be deteriorating without an Unsafe filing — but it isolates the cases most worth a closer look.</p>
 
 <h2>Owner attribution</h2>
 <p>Owner names in popups come from PLUTO's <code>ownername</code> field, joined to the shed permit on Borough-Block-Lot (BBL). PLUTO records the owner of the tax lot, which is typically the building owner — not the scaffolding contractor that filed the shed permit. For roughly 1% of sheds the BBL doesn't match a current PLUTO record, and the popup falls back to the permit's stated owner.</p>
@@ -66,7 +66,7 @@
   <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-NOW-Build-Approved-Permits/rbx6-tga4">DOB NOW: Build approved permits</a> (<code>rbx6-tga4</code>) — current shed permits</li>
   <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-Permit-Issuance/ipu4-2q9a">DOB Permit Issuance — legacy</a> (<code>ipu4-2q9a</code>) — pre-DOB-NOW shed history</li>
   <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-NOW-Build-Job-Application-Filings/w9ak-ipjd">DOB NOW: Build job application filings</a> (<code>w9ak-ipjd</code>) — for zombie detection</li>
-  <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-NOW-Safety-Facades-Compliance-Filings/xubg-57si">DOB NOW: Safety – Façade compliance filings</a> (<code>xubg-57si</code>) — Local Law 11 status</li>
+  <li><a href="https://data.cityofnewyork.us/Housing-Development/DOB-NOW-Safety-Facades-Compliance-Filings/xubg-57si">DOB NOW: Safety – Facade compliance filings</a> (<code>xubg-57si</code>) — Local Law 11 status</li>
   <li><a href="https://data.cityofnewyork.us/City-Government/Primary-Land-Use-Tax-Lot-Output-PLUTO-/64uk-42ks">PLUTO</a> (<code>64uk-42ks</code>) — building owner, year built, building class</li>
 </ul>
 <p>All data is fetched from NYC Open Data's Socrata API. The build pipeline is <code>scripts/build_data.py</code> and runs nightly via GitHub Actions.</p>
@@ -76,7 +76,7 @@
   <li>It only covers sheds permitted under DOB. Unpermitted sheds — and there are some — won't appear.</li>
   <li>"Days up" measures permit coverage, not what is physically standing on the sidewalk on any given day.</li>
   <li>Equity overlays (income, race, retail vacancy by community district) are a planned next step and not yet included.</li>
-  <li>Local Law 11 (Façade Inspection Safety Program) cycle context — which shed-buildings are inside an open FISP cycle — is not yet joined in.</li>
+  <li>Local Law 11 (Facade Inspection Safety Program) cycle context — which shed-buildings are inside an open FISP cycle — is not yet joined in.</li>
 </ul>
 
 <h2>Numbers in the headline strip</h2>

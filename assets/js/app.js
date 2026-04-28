@@ -241,7 +241,7 @@
       ${s.appl ? `<div class="popup-row"><span>Filed by (contractor)</span><span>${titleCase(s.appl)}</span></div>` : ''}
 
       <div class="popup-section">Building condition</div>
-      <div class="popup-row"><span>Façade (Local Law 11)</span><span>${FISP_LABEL[FISP_KEY(s)] || FISP_KEY(s)}${s.fisp_cycle ? ` · cycle ${s.fisp_cycle}` : ''}</span></div>
+      <div class="popup-row"><span>Facade (Local Law 11)</span><span>${FISP_LABEL[FISP_KEY(s)] || FISP_KEY(s)}${s.fisp_cycle ? ` · cycle ${s.fisp_cycle}` : ''}</span></div>
       ${(s.hpd_c || s.hpd_b) ? `<div class="popup-row"><span>Open housing violations</span><span>${s.hpd_c || 0} immediately hazardous, ${s.hpd_b || 0} significant</span></div>` : ''}
       ${s.aep ? `<div class="popup-row"><span>HPD distress program</span><span>Enrolled in AEP</span></div>` : ''}
       ${s.complaints ? `<div class="popup-row"><span>311 complaints (past 12 months)</span><span><strong>${s.complaints}</strong></span></div>` : ''}
@@ -423,7 +423,7 @@
   const PRESETS = {
     'zombies': {
       label: 'Why is this still up?',
-      desc: '<strong>Zombie sheds.</strong> Up over a year, no recent non-shed work, and no documented unsafe-façade filing — the strongest signal of a shed sitting there for no defensible reason.',
+      desc: '<strong>Zombie sheds.</strong> Up over a year, no recent non-shed work, and no documented unsafe-facade filing — the strongest signal of a shed sitting there for no defensible reason.',
       apply: () => {
         clearAllFilters();
         document.getElementById('f-zombie').checked = true;
@@ -431,7 +431,7 @@
     },
     'safe-shedded': {
       label: 'Safe but still shedded',
-      desc: '<strong>Sheds at buildings the city has rated SAFE</strong> in their most recent Local Law 11 façade filing. The façade is certified fine — yet the sidewalk shed is still up.',
+      desc: '<strong>Sheds at buildings the city has rated SAFE</strong> in their most recent Local Law 11 facade filing. The facade is certified fine — yet the sidewalk shed is still up.',
       apply: () => { clearAllFilters(); state.fisp.add('SAFE'); },
     },
     'distressed-long': {
@@ -507,7 +507,7 @@
       parts.push(`up ${[...state.buckets].map(b => labels[b]).join(' or ')}`);
     }
     if (state.fisp.size) {
-      const labels = { UNSAFE: 'documented Unsafe façade', SWARMP: 'SWARMP-rated façade (needs repair)', SAFE: 'Safe-rated façade', NONE: 'no LL11 filing on record' };
+      const labels = { UNSAFE: 'documented Unsafe facade', SWARMP: 'SWARMP-rated facade (needs repair)', SAFE: 'Safe-rated facade', NONE: 'no LL11 filing on record' };
       parts.push(`with ${[...state.fisp].map(k => labels[k]).join(' or ')}`);
     }
     if (state.flags.has('distress')) parts.push('at distressed buildings (HPD/AEP)');
@@ -720,12 +720,12 @@
       });
     }
 
-    // 2. Unsafe-façade share
+    // 2. Unsafe-facade share
     findings.push({
       kind: 'context',
       num: `${fmt(s.fisp_unsafe || 0)}`,
-      head: 'Sheds tied to a documented unsafe-façade filing',
-      body: `Roughly <strong>${Math.round(100 * (s.fisp_unsafe || 0) / (s.total_active || 1))}%</strong> of active sheds are at buildings with an Unsafe filing under Local Law 11. Those sheds are required by law and are the easiest to explain.`,
+      head: 'Sheds tied to a documented unsafe-facade filing',
+      body: `About <strong>${Math.round(100 * (s.fisp_unsafe || 0) / (s.total_active || 1))} percent</strong> of active sheds are at buildings with an Unsafe filing under Local Law 11. Those sheds are required by law and are the easiest to explain.`,
       cta: 'Filter map to Unsafe →',
       action: () => { state.fisp.add('UNSAFE'); switchView('map'); syncLegend(); applyFilters(); },
     });
@@ -735,7 +735,7 @@
       kind: 'severe',
       num: fmt(s.fisp_safe || 0),
       head: 'Sheds at buildings the city has rated Safe',
-      body: `These buildings filed a façade-compliance report saying the façade is <strong>safe</strong> — yet the sidewalk shed is still up. A subset deserves direct scrutiny.`,
+      body: `These buildings filed a facade-compliance report saying the facade is <strong>safe</strong> — yet the sidewalk shed is still up. A subset deserves direct scrutiny.`,
       cta: 'Filter map →',
       action: () => { state.fisp.add('SAFE'); switchView('map'); syncLegend(); applyFilters(); },
     });
@@ -755,7 +755,7 @@
       kind: 'severe',
       num: fmt(s.with_open_class_c || 0),
       head: 'Sheds at buildings with hazardous housing violations',
-      body: `<strong>${Math.round(100 * (s.with_open_class_c || 0) / (s.total_active || 1))}%</strong> of shed-bearing buildings have at least one open Class C (immediately hazardous) HPD violation. The shed is often the most visible symptom of a deeper problem.`,
+      body: `About <strong>${Math.round(100 * (s.with_open_class_c || 0) / (s.total_active || 1))} percent</strong> of shed-bearing buildings have at least one open Class C — immediately hazardous — housing violation on file with HPD. The shed is often the most visible symptom of a deeper problem.`,
       cta: 'Filter map to distressed →',
       action: () => { state.flags.add('distress'); switchView('map'); syncLegend(); applyFilters(); },
     });
@@ -775,7 +775,7 @@
       kind: '',
       num: `${(longest.days/365).toFixed(1)} yr`,
       head: 'Longest-running shed-permit coverage',
-      body: `<strong>${longest.addr}, ${longest.boro}</strong> has had an unbroken run of shed permits (gaps ≤30 days) since <strong>${longest.first}</strong>. Owner per PLUTO: ${titleCase(longest.owner || 'unknown')}. Façade status: ${FISP_LABEL[FISP_KEY(longest)] || 'no filing'}.`,
+      body: `<strong>${longest.addr}, ${longest.boro}</strong> has had an unbroken run of shed permits (gaps ≤30 days) since <strong>${longest.first}</strong>. Owner per PLUTO: ${titleCase(longest.owner || 'unknown')}. Facade status: ${FISP_LABEL[FISP_KEY(longest)] || 'no filing'}.`,
       cta: 'Show on map →',
       action: () => {
         switchView('map');
@@ -792,7 +792,7 @@
       kind: 'context',
       num: fmt(cdTop.sheds),
       head: 'Most shed-burdened community district',
-      body: `The single CD with the most active sheds. Top three districts together hold roughly <strong>${Math.round(100 * (state.cd.slice(0,3).reduce((a,c)=>a+c.sheds,0)) / (s.total_active || 1))}%</strong> of citywide sheds.`,
+      body: `The single CD with the most active sheds. The top three districts together hold about <strong>${Math.round(100 * (state.cd.slice(0,3).reduce((a,c)=>a+c.sheds,0)) / (s.total_active || 1))} percent</strong> of all citywide sheds.`,
       cta: 'See ranking →',
       action: () => switchView('neighborhoods'),
     });
@@ -1094,7 +1094,7 @@
           <div class="shed-card-body">
             <div><span class="label">Time under shed</span> <strong>${(s.days/365).toFixed(1)} years</strong> (since ${s.first})</div>
             <div><span class="label">Property owner</span> ${s.owner === '—' ? 'not on file' : titleCase(s.owner)}</div>
-            <div><span class="label">Façade (LL11)</span> ${fispLbl}${s.fisp_cycle ? ` · cycle ${s.fisp_cycle}` : ''}</div>
+            <div><span class="label">Facade (LL11)</span> ${fispLbl}${s.fisp_cycle ? ` · cycle ${s.fisp_cycle}` : ''}</div>
             ${(s.hpd_c || s.hpd_b) ? `<div><span class="label">Open HPD violations</span> ${s.hpd_c || 0} immediately hazardous, ${s.hpd_b || 0} significant</div>` : ''}
             ${s.complaints ? `<div><span class="label">311 complaints (12 mo)</span> <strong>${s.complaints}</strong></div>` : ''}
             ${s.zombie ? '<div><span class="label">Status</span> <strong style="color:#d2232a">Zombie shed</strong></div>' : ''}
