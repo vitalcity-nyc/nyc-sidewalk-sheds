@@ -1055,13 +1055,6 @@
       </div>
       ${hits.map(x => shedCardHTML(x.s, x.dist)).join('')}
     `;
-    out.querySelectorAll('[data-action="email"]').forEach(b => {
-      b.addEventListener('click', () => {
-        const bin = b.dataset.bin;
-        const s = state.sheds.find(s => s.bin === bin);
-        if (s) openCivicEmail(s);
-      });
-    });
     out.querySelectorAll('[data-action="map"]').forEach(b => {
       b.addEventListener('click', () => {
         const bin = b.dataset.bin;
@@ -1096,86 +1089,11 @@
         </div>
         <div class="shed-card-actions">
           <button data-action="map" data-bin="${s.bin}">Show on map</button>
-          <button class="primary" data-action="email" data-bin="${s.bin}">✉ Draft email</button>
         </div>
       </div>
     `;
   }
 
-  function openCivicEmail(s) {
-    const yrs = (s.days / 365).toFixed(1);
-    const fispLine = FISP_LABEL[FISP_KEY(s)] === 'Unsafe'
-      ? `The building's most recent Local Law 11 façade filing is "Unsafe" (cycle ${s.fisp_cycle || '—'}), which means a shed is legally required.`
-      : (FISP_LABEL[FISP_KEY(s)] === 'Safe'
-        ? `The building's most recent Local Law 11 façade filing is "Safe" — meaning the façade is certified safe yet the shed is still in place.`
-        : `The building's most recent Local Law 11 façade filing is "${FISP_LABEL[FISP_KEY(s)] || 'not on record'}".`);
-    const hpdLine = (s.hpd_c || s.hpd_b)
-      ? `HPD records ${s.hpd_c || 0} open immediately-hazardous (Class C) and ${s.hpd_b || 0} significant (Class B) housing violations on the property.`
-      : '';
-    const subject = `Sidewalk shed at ${s.addr}, ${s.boro} — up ${yrs} years`;
-    const body =
-`I'm writing about the sidewalk shed at ${s.addr}, ${s.boro}.
-
-According to NYC Department of Buildings records, this building has had continuous shed-permit coverage since ${s.first} — about ${yrs} years. The current permit expires ${s.exp || 'soon'}.
-
-${fispLine}
-${hpdLine}
-${s.zombie ? 'No DOB job filing for non-shed construction work has had a status update at this building in the past year, so the shed appears to be standing without active work to justify it.' : ''}
-
-Could your office look into why this shed has been up so long, what (if any) façade or structural work remains, and what would be required to bring it down? Constituents want clear pedestrian sidewalks restored where they are not strictly needed for safety.
-
-Reference:
-- Property: ${s.addr}, ${s.boro} (BIN ${s.bin})
-- Owner per PLUTO: ${s.owner === '—' ? 'not on file' : titleCase(s.owner)}
-- Council District: ${s.cdist || '—'}
-- Community District: ${s.cd || '—'}
-- DOB job filing: ${s.job || '—'}
-- Source: ${location.origin}${location.pathname}`;
-
-    const cm = `https://council.nyc.gov/districts/`;
-    const cb = (s.boro || '').toLowerCase().replace(' ', '-') + '-cb' + (s.cd ? s.cd.slice(1).replace(/^0/, '') : '');
-    const subjectEnc = encodeURIComponent(subject);
-    const bodyEnc = encodeURIComponent(body);
-    const html = `
-      <div class="modal-card" style="max-width:640px">
-        <h3>Draft a message about ${s.addr}</h3>
-        <p>Personalize the text below, then send it to your council member, community board, or 311. <strong>Your council district is ${s.cdist || 'unknown'}; community district is ${s.cd || 'unknown'}.</strong></p>
-        <textarea id="civic-body" style="height:280px;white-space:pre-wrap">${body}</textarea>
-        <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
-          <a class="primary" href="mailto:?subject=${subjectEnc}&body=${bodyEnc}" id="civic-mailto">Open in email</a>
-          <a href="${cm}" target="_blank" rel="noopener">Find your council member →</a>
-          <a href="https://portal.311.nyc.gov/" target="_blank" rel="noopener">File with 311 →</a>
-          <button id="civic-copy">Copy text</button>
-          <button id="civic-close" style="margin-left:auto">Close</button>
-        </div>
-      </div>
-    `;
-    let modal = document.getElementById('civic-modal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'civic-modal';
-      modal.className = 'modal';
-      document.body.appendChild(modal);
-    }
-    modal.innerHTML = html;
-    modal.hidden = false;
-    document.getElementById('civic-close').addEventListener('click', () => { modal.hidden = true; });
-    modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
-    document.getElementById('civic-copy').addEventListener('click', async () => {
-      const text = document.getElementById('civic-body').value;
-      try {
-        await navigator.clipboard.writeText(text);
-        const btn = document.getElementById('civic-copy');
-        const orig = btn.textContent;
-        btn.textContent = 'Copied!';
-        setTimeout(() => { btn.textContent = orig; }, 1500);
-      } catch (e) {}
-    });
-    document.getElementById('civic-mailto').addEventListener('click', e => {
-      const text = document.getElementById('civic-body').value;
-      e.target.href = `mailto:?subject=${subjectEnc}&body=${encodeURIComponent(text)}`;
-    });
-  }
 
   document.getElementById('addr-go').addEventListener('click', () => {
     const q = document.getElementById('addr-input').value.trim();

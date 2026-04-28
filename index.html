@@ -50,7 +50,7 @@
   <nav class="tabs" role="tablist">
     <button class="tab active" data-view="map" role="tab">Map</button>
     <button class="tab" data-view="findings" role="tab">Findings</button>
-    <button class="tab" data-view="myblock" role="tab">Look up an address</button>
+    <button class="tab" data-view="myblock" role="tab">Search by address</button>
     <button class="tab" data-view="zombies" role="tab">Top sheds</button>
     <button class="tab" data-view="neighborhoods" role="tab">By neighborhood</button>
     <button class="tab" data-view="council" role="tab">Council districts</button>
@@ -187,7 +187,7 @@
           <input id="addr-input" placeholder="e.g. 79 Manhattan Ave, Brooklyn or 350 5th Ave" autocomplete="off" autocapitalize="words">
           <button id="addr-go" class="addr-btn">Find sheds near here</button>
         </div>
-        <p class="addr-hint">Searches DOB-permitted sidewalk sheds within a ¼-mile radius. No data leaves your browser.</p>
+        <p class="addr-hint">Returns active DOB-permitted sidewalk sheds within a quarter-mile radius, ranked by distance.</p>
       </div>
       <div id="addr-results" class="addr-results" hidden></div>
     </section>
