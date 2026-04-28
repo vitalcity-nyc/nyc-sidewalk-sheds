@@ -12,6 +12,21 @@
 </head>
 <body>
 <div class="embed">
+  <header class="hero">
+    <div class="hero-text">
+      <div class="hero-title">NYC Sidewalk Shed Tracker</div>
+      <div class="hero-tag">Active DOB-permitted sheds, with Local Law 11 façade compliance, building distress signals, and 311 complaint history.</div>
+    </div>
+    <div class="hero-actions">
+      <span class="hero-asof">Updated <strong id="s-asof2">—</strong></span>
+      <a class="hero-cta" id="btn-open-full" href="?" target="_blank" rel="noopener" hidden>Open full version &rarr;</a>
+      <button class="iconbtn icon-fs" id="btn-fullscreen-2" title="Toggle full screen" aria-label="Toggle full screen">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9"/></svg>
+      </button>
+      <button class="iconbtn" id="btn-embed-2" title="Copy embed code" aria-label="Copy embed code">&lt;/&gt;</button>
+    </div>
+  </header>
+
   <header class="topbar">
     <div class="stat">
       <span class="num" id="s-total">—</span>
@@ -55,17 +70,13 @@
     <button class="tab" data-view="neighborhoods" role="tab">By neighborhood</button>
     <button class="tab" data-view="council" role="tab">Council districts</button>
     <button class="tab" data-view="trend" role="tab">Trend over time</button>
-    <button class="iconbtn" id="btn-fullscreen" title="Toggle full screen" aria-label="Toggle full screen">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9"/></svg>
-    </button>
-    <button class="iconbtn" id="btn-embed" title="Copy embed code" aria-label="Copy embed code">&lt;/&gt;</button>
     <a class="meth" href="methodology.html" target="_blank" rel="noopener">Methodology</a>
   </nav>
 
   <div class="modal" id="embed-modal" hidden>
     <div class="modal-card">
-      <h3>Embed this</h3>
-      <p>Paste the snippet below into a Ghost <strong>HTML card</strong> (press <code>/</code> in the editor and choose HTML).</p>
+      <h3>Embed this in your story</h3>
+      <p>Paste into a Ghost <strong>HTML card</strong> (press <code>/</code> in the editor and choose HTML). The embed shows a compact map with key stats; readers can click "Open full version" to access tabs, filters, scorecards, and the time machine.</p>
       <textarea readonly id="embed-code"></textarea>
       <div class="modal-actions">
         <button id="embed-copy">Copy</button>

@@ -1,6 +1,18 @@
 (() => {
   'use strict';
 
+  // Compact embed mode: hides tabs/filters/presets, shows just stats + map.
+  const _params = new URLSearchParams(location.search);
+  const COMPACT = _params.get('mode') === 'compact';
+  if (COMPACT) {
+    document.body.classList.add('compact');
+    const cta = document.getElementById('btn-open-full');
+    if (cta) {
+      cta.hidden = false;
+      cta.href = location.pathname; // strips ?mode=compact
+    }
+  }
+
   const COLORS = [
     { max: 90,    fill: '#57aa4a' },
     { max: 365,   fill: '#dde44c' },
@@ -75,6 +87,7 @@
     document.getElementById('s-unsafe').textContent = fmt(s.fisp_unsafe || 0);
     document.getElementById('s-distress').textContent = fmt(s.high_distress || 0);
     document.getElementById('s-asof').textContent = s.as_of;
+    const asof2 = document.getElementById('s-asof2'); if (asof2) asof2.textContent = s.as_of;
   }
   function paintFilteredStats() {
     const sel = state.filtered;
@@ -1183,23 +1196,31 @@
   });
 
   // ── fullscreen + embed code ──────────────────────────────────────────────
-  document.getElementById('btn-fullscreen').addEventListener('click', () => {
+  function toggleFs() {
     const root = document.querySelector('.embed');
     if (document.fullscreenElement) {
       document.exitFullscreen();
     } else if (root.requestFullscreen) {
       root.requestFullscreen();
     }
+  }
+  ['btn-fullscreen', 'btn-fullscreen-2'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.addEventListener('click', toggleFs);
   });
 
   const embedModal = document.getElementById('embed-modal');
   const embedCode = document.getElementById('embed-code');
-  document.getElementById('btn-embed').addEventListener('click', () => {
+  function openEmbed() {
     const url = 'https://vitalcity-nyc.github.io/nyc-sidewalk-sheds/';
     embedCode.value =
-      `<iframe src="${url}" width="100%" height="780" frameborder="0" loading="lazy" style="border:1px solid #e6e6e0;display:block" title="NYC sidewalk sheds — interactive tracker"></iframe>`;
+      `<iframe src="${url}?mode=compact" width="100%" height="600" frameborder="0" loading="lazy" style="border:1px solid #e6e6e0;display:block" title="NYC sidewalk shed tracker"></iframe>`;
     embedModal.hidden = false;
     embedCode.select();
+  }
+  ['btn-embed', 'btn-embed-2'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.addEventListener('click', openEmbed);
   });
   document.getElementById('embed-close').addEventListener('click', () => {
     embedModal.hidden = true;
