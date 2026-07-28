@@ -1,0 +1,74 @@
+name: Staleness watchdog
+
+# The previous version of this project froze for three months and nobody noticed,
+# because a refresh that never runs looks exactly like a repo at rest. This job
+# makes silence audible: if the published data ages past the threshold, it opens
+# (or updates) an issue.
+on:
+  schedule:
+    - cron: "45 13 * * *"  # 9:45am ET, a few hours after the refresh should have run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  MAX_AGE_DAYS: 3
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check data age
+        id: age
+        run: |
+          AS_OF=$(python3 -c "import json;print(json.load(open('data/summary.json'))['as_of'])")
+          AGE=$(python3 -c "
+          from datetime import date
+          y,m,d = map(int, '$AS_OF'.split('-'))
+          print((date.today() - date(y,m,d)).days)
+          ")
+          echo "as_of=$AS_OF" >> "$GITHUB_OUTPUT"
+          echo "age=$AGE" >> "$GITHUB_OUTPUT"
+          echo "Data is $AGE day(s) old (as_of $AS_OF)."
+          if [ "$AGE" -gt "${MAX_AGE_DAYS}" ]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or update staleness issue
+        if: steps.age.outputs.stale == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGE: ${{ steps.age.outputs.age }}
+          AS_OF: ${{ steps.age.outputs.as_of }}
+        run: |
+          TITLE="Shed data is stale (${AGE} days old)"
+          EXISTING=$(gh issue list --label stale-data --state open --json number -q '.[0].number')
+          BODY=$(printf '%s\n' \
+            "The published data is dated **${AS_OF}**, which is **${AGE} days** old." \
+            "" \
+            "The nightly \`Refresh shed data\` workflow has not committed fresh data." \
+            "Check its most recent run for the cause." \
+            "" \
+            "The site is still serving the last known-good data — validation prevents" \
+            "bad data from publishing — but the numbers on the map are out of date.")
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh label create stale-data --color d73a4a --description "Automated refresh has stopped" 2>/dev/null || true
+            gh issue create --title "$TITLE" --label stale-data --body "$BODY"
+          fi
+
+      - name: Close resolved staleness issue
+        if: steps.age.outputs.stale == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for n in $(gh issue list --label stale-data --state open --json number -q '.[].number'); do
+            gh issue close "$n" --comment "Data is fresh again (as of ${{ steps.age.outputs.as_of }}). Closing automatically."
+          done

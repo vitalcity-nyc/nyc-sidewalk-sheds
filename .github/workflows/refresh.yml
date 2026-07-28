@@ -1,0 +1,77 @@
+name: Refresh shed data
+
+# The whole point of this repo. If this workflow is missing or failing, the site
+# silently serves stale data — which is exactly what happened to the previous
+# version, where the data froze for three months without anyone noticing.
+on:
+  schedule:
+    # 07:20 UTC ≈ 3:20am ET. DOB NOW publishes overnight; this runs after.
+    # Deliberately off the hour: GitHub's cron queue is congested at :00.
+    - cron: "20 7 * * *"
+  workflow_dispatch:
+    inputs:
+      allow_swing:
+        description: "Bypass the day-over-day swing guard (use if a big jump is real)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build data
+        env:
+          # Optional and usually absent. A build is ~46 requests/day, which runs
+          # fine against Socrata's anonymous per-IP pool. See README.
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+          ALLOW_SWING: ${{ inputs.allow_swing && '1' || '' }}
+        run: python3 scripts/build_data.py
+
+      - name: Commit refreshed data
+        id: commit
+        run: |
+          git config user.name "shed-bot"
+          git config user.email "actions@github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "No change in the data; nothing to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          TOTAL=$(python3 -c "import json;print(json.load(open('data/summary.json'))['total_active'])")
+          git commit -m "Refresh shed data — ${TOTAL} active sheds ($(date -u +%Y-%m-%d))"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      # A silent cron is how the last version rotted. If the build breaks, say so
+      # loudly in the Actions run summary rather than leaving a green-looking repo.
+      - name: Report failure
+        if: failure()
+        run: |
+          {
+            echo "## Shed data refresh FAILED"
+            echo ""
+            echo "The site is still serving the last known-good data — the build"
+            echo "refuses to publish anything that fails validation, so nothing is"
+            echo "corrupted. But the data is now going stale."
+            echo ""
+            echo "Common causes:"
+            echo "- Socrata throttling → add a \`SOCRATA_APP_TOKEN\` repo secret"
+            echo "- A real jump in shed counts tripping the swing guard →"
+            echo "  re-run this workflow with \`allow_swing\` checked"
+            echo "- An upstream schema change → check the job log above"
+          } >> "$GITHUB_STEP_SUMMARY"
