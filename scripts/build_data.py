@@ -58,6 +58,18 @@ def write_atomic(path: Path, payload, indent=None) -> None:
         raise
 
 
+def parse_int(s, default=0):
+    """Best-effort int for DOB columns that are typed as numbers but keyed by hand.
+
+    FISP sequence_no has shipped values like 'O4' (letter O for zero). A single
+    fat-fingered cell should not abort a build over 100,000 good rows.
+    """
+    try:
+        return int(str(s).strip())
+    except (TypeError, ValueError):
+        return default
+
+
 def parse_dt(s):
     if not s:
         return None
@@ -187,18 +199,28 @@ def main() -> int:
 
     # 7. FISP (Local Law 11) facade filings for our BINs.
     log(f"[7/8] FISP filings for {len(active_bins):,} BINs...")
-    fisp_by_bin = {}
+    # Keep the newest filing per BIN: newest cycle, then highest sequence.
+    fisp_best = {}
+    fisp_unparseable = 0
     for row in socrata.fetch_in_chunks(
         "xubg-57si", "bin", active_bins,
         select="bin,cycle,current_status,filing_status,sequence_no",
         what="FISP",
     ):
         b = str(row.get("bin"))
-        key = (int(row.get("cycle") or 0), int(row.get("sequence_no") or 0))
-        cur = fisp_by_bin.get(b)
-        if cur is None or key > (int(cur.get("cycle") or 0), int(cur.get("sequence_no") or 0)):
-            fisp_by_bin[b] = row
+        key = (parse_int(row.get("cycle")), parse_int(row.get("sequence_no")))
+        for field in ("cycle", "sequence_no"):
+            raw = row.get(field)
+            if raw not in (None, "") and parse_int(raw, None) is None:
+                fisp_unparseable += 1
+        cur = fisp_best.get(b)
+        if cur is None or key > cur[0]:
+            fisp_best[b] = (key, row)
+    fisp_by_bin = {b: row for b, (_, row) in fisp_best.items()}
     log(f"  BINs with a FISP record: {len(fisp_by_bin):,}")
+    if fisp_unparseable:
+        log(f"  WARNING: {fisp_unparseable:,} non-numeric FISP cycle/sequence_no values "
+            "treated as 0 for ordering (DOB data-entry errors).")
 
     # 8. Recent non-shed job filings => the building is actually being worked on.
     #
